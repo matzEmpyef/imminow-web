@@ -10,7 +10,7 @@ import { useCreateCollege, useUpdateCollege } from '@/queries/adminColleges'
 import { showToast } from '@/lib/toast'
 import { humaniseCode } from '@/lib/humanise'
 import type { components } from '@/api/schema'
-import { percentError, countError, urlError, isTextOk } from '@/lib/validation'
+import { RANK_YEAR_MIN, percentError, countError, urlError, isTextOk } from '@/lib/validation'
 
 type College = components['schemas']['College']
 
@@ -84,8 +84,8 @@ export function CollegeFormModal({
   const qsRankValid = qsRank === '' || !countError(qsRank, { min: 1, max: 10000 })
   const theRankValid = theRank === '' || !countError(theRank, { min: 1, max: 10000 })
   const yearsValid =
-    (qsRankYear === '' || !countError(qsRankYear, { min: 1900, max: 2100 })) &&
-    (theRankYear === '' || !countError(theRankYear, { min: 1900, max: 2100 }))
+    (qsRankYear === '' || !countError(qsRankYear, { min: RANK_YEAR_MIN, max: 2100 })) &&
+    (theRankYear === '' || !countError(theRankYear, { min: RANK_YEAR_MIN, max: 2100 }))
   const websiteError = urlError(website ?? '')
   // The year is required with the rank, and meaningless without it (M25).
   const qsYearError =
@@ -195,7 +195,7 @@ export function CollegeFormModal({
             />
             <TextField
               kind="count"
-              countMin={1900}
+              countMin={RANK_YEAR_MIN}
               countMax={2100}
               label="QS table year"
               type="number"
@@ -218,7 +218,7 @@ export function CollegeFormModal({
             />
             <TextField
               kind="count"
-              countMin={1900}
+              countMin={RANK_YEAR_MIN}
               countMax={2100}
               label="THE table year"
               type="number"

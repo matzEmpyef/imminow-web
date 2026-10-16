@@ -100,7 +100,7 @@ export function AddFieldModal({
           {/* Type's column has a label line above its select; TextField's label floats inside
               the input instead, so without this the two controls sit at different heights. */}
           <div className="mt-lg">
-            <TextField kind="label" label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+            <TextField kind="title" label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
           </div>
         </div>
 
@@ -166,7 +166,7 @@ export function AddFieldModal({
                   </option>
                 ))}
               </SelectField>
-              <TextField kind="label" label="Column label" value={columnLabel} onChange={(e) => setColumnLabel(e.target.value)} />
+              <TextField kind="title" label="Column label" value={columnLabel} onChange={(e) => setColumnLabel(e.target.value)} />
               <Button type="button" variant="secondary" onClick={addColumn} disabled={!columnLabel}>
                 Add Column
               </Button>

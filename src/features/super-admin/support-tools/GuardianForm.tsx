@@ -21,7 +21,7 @@ export function GuardianForm({ result, onCancel }: { result: UserSearchResult; o
   const consent = result.guardian_consent
   const guardianEmailError = emailError(email)
   const canSend =
-    isTextOk('reason', reason) && isTextOk('name', guardianName, { optional: true }) && !guardianEmailError
+    isTextOk('reason', reason) && isTextOk('fullName', guardianName, { optional: true }) && !guardianEmailError
 
   if (succeeded) {
     return (
@@ -55,7 +55,7 @@ export function GuardianForm({ result, onCancel }: { result: UserSearchResult; o
         Emails the guardian a fresh approval link and resets their decline count.
       </p>
       <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
-      <TextField kind="name" label="Guardian name (optional)" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
+      <TextField kind="fullName" label="Guardian name (optional)" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
       <TextField
         type="email"
         label="Guardian email (optional — leave blank to reuse the one on file)"

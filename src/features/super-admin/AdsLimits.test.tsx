@@ -32,7 +32,7 @@ vi.mock('@/components/ImageUploadField', () => ({
 
 import { AdFormModal } from './AdsManagerPage'
 
-const URL_SENTENCE = 'Enter a web address that starts with https:// (up to 2048 characters).'
+const URL_SENTENCE = 'Enter a web address that starts with https://, for example https://example.com.'
 const RANGE_SENTENCE = 'The end date must be on or after the start date.'
 
 beforeEach(() => {
@@ -88,11 +88,19 @@ describe('the ad form', () => {
     expect(start).toHaveAttribute('max', '2100-12-31')
   })
 
-  it('wants a priority of at least 1', () => {
+  it('wants a priority from 1 to 1,000', () => {
     open()
     const priority = screen.getByLabelText(/^Priority/)
     fireEvent.change(priority, { target: { value: '0' } })
     fireEvent.blur(priority)
-    expect(screen.getByText('Enter a whole number from 1 to 10,00,000.')).toBeInTheDocument()
+    expect(screen.getByText('Enter a whole number from 1 to 1,000.')).toBeInTheDocument()
+  })
+
+  it('refuses a priority above 1,000, the server limit', () => {
+    open()
+    const priority = screen.getByLabelText(/^Priority/)
+    fireEvent.change(priority, { target: { value: '1001' } })
+    fireEvent.blur(priority)
+    expect(screen.getByText('Enter a whole number from 1 to 1,000.')).toBeInTheDocument()
   })
 })

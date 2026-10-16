@@ -262,7 +262,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <TextField
             kind="count"
-            countMax={1000}
+            countMax={form.durationUnit === 'years' ? 20 : 240}
             label="Length"
             type="number"
             min="0"

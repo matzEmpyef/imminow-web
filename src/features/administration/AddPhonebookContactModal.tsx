@@ -47,7 +47,7 @@ export function AddPhonebookContactModal({
   const emailError = email !== (contact?.email ?? '') ? checkEmail(email) : undefined
   const server = useServerFieldErrors(save.error, { name, category, phone, email })
   const canSubmit =
-    Boolean(isTextOk('label', name) && isTextOk('label', category) && phone.trim()) && !phoneError && !emailError
+    Boolean(isTextOk('title', name) && isTextOk('label', category) && phone.trim()) && !phoneError && !emailError
   const stillNeeded = [...(name.trim() ? [] : ['a name']), ...(category.trim() ? [] : ['a category']), ...(phone ? [] : ['a phone number'])]
 
   function handleSubmit(e: FormEvent) {
@@ -88,7 +88,7 @@ export function AddPhonebookContactModal({
     >
       <form id="add-phonebook-contact-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
-          kind="label"
+          kind="title"
           label="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}

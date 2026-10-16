@@ -433,7 +433,7 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
   const canSubmit =
     isTextOk('title', name) &&
     isTextOk('label', category, { optional: true }) &&
-    isTextOk('name', contactPerson, { optional: true }) &&
+    isTextOk('fullName', contactPerson, { optional: true }) &&
     !contactPhoneError &&
     (!isOnline || partnerCountries.length > 0)
 
@@ -489,7 +489,7 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
           ]}
         />
         <TextField kind="label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-        <TextField kind="name" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+        <TextField kind="fullName" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
         <TextField
           label="Contact phone"
           kind="phone"
@@ -535,7 +535,7 @@ function EditPartnerModal({ partner, onClose }: { partner: RedemptionPartner; on
   const canSave =
     isTextOk('title', name) &&
     isTextOk('label', category, { optional: true }) &&
-    isTextOk('name', contactPerson, { optional: true }) &&
+    isTextOk('fullName', contactPerson, { optional: true }) &&
     !contactPhoneError
 
   function handleSubmit(e: FormEvent) {
@@ -576,7 +576,7 @@ function EditPartnerModal({ partner, onClose }: { partner: RedemptionPartner; on
       <form id="edit-partner-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField kind="title" label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
         <TextField kind="label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-        <TextField kind="name" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+        <TextField kind="fullName" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
         <TextField
           label="Contact phone"
           kind="phone"

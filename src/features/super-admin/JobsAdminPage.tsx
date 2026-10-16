@@ -23,6 +23,9 @@ import type { components } from '@/api/schema'
 import { LimitedTextArea } from '@/components/LimitedTextArea'
 import { isValidHttpsUrl, URL_SENTENCE, dateRangeError } from '@/lib/validation'
 
+/** The most skills one job lists (the server's limit). */
+const SKILLS_MAX = 30
+
 type JobListing = components['schemas']['JobListing']
 type JobType = NonNullable<JobListing['job_type']>
 type WorkMode = NonNullable<JobListing['work_mode']>
@@ -130,7 +133,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
 
   function addSkill() {
     const trimmed = skillDraft.trim()
-    if (!trimmed || skills.includes(trimmed)) return
+    if (!trimmed || skills.includes(trimmed) || skills.length >= SKILLS_MAX) return
     setSkills((prev) => [...prev, trimmed])
     setSkillDraft('')
   }
@@ -209,7 +212,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
         <TextField kind="title" label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={titleError} />
         <div className="grid grid-cols-2 gap-sm">
           <TextField
-            kind="label"
+            kind="title"
             label="Company"
             required
             value={company}
@@ -347,6 +350,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
             <TextField
               kind="label"
               label="Skill"
+              limit={60}
               value={skillDraft}
               onChange={(e) => setSkillDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -356,7 +360,13 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
                 }
               }}
             />
-            <Button type="button" variant="secondary" onClick={addSkill} disabled={!skillDraft.trim()}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={addSkill}
+              disabled={!skillDraft.trim() || skills.length >= SKILLS_MAX}
+              title={skills.length >= SKILLS_MAX ? `A job can list up to ${SKILLS_MAX} skills.` : undefined}
+            >
               Add Skill
             </Button>
           </div>

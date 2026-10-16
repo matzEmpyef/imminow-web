@@ -103,7 +103,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
   const textOk =
     isTextOk('label', city, { optional: true }) &&
     isTextOk('address', address, { optional: true }) &&
-    isTextOk('label', visitingHours, { optional: true })
+    isTextOk('shortText', visitingHours, { optional: true })
   const descriptionWords = wordCount(description)
   const descriptionError =
     descriptionWords > DESCRIPTION_WORD_LIMIT
@@ -179,7 +179,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
           />
           <div className="flex flex-col gap-xs">
             <TextField
-              kind="label"
+              kind="shortText"
               label="Visiting hours"
               value={visitingHours}
               onChange={(e) => setVisitingHours(e.target.value)}

@@ -30,7 +30,7 @@ import { formatDate, formatDateTime } from '@/lib/time'
 import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
 import { LimitedTextArea } from '@/components/LimitedTextArea'
-import { countError, isTextOk } from '@/lib/validation'
+import { PER_STUDENT_LIMIT_MAX, countError, isTextOk } from '@/lib/validation'
 
 type Coupon = components['schemas']['Coupon']
 type RelevanceScope = NonNullable<Coupon['relevance_scope']>
@@ -124,7 +124,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
   // still SENT on create, because the create refuses a body with no `relevance_scope` at all.
   const effectiveScope: RelevanceScope | '' = isOnlinePartner ? 'country' : relevanceScope
   const limitValue = Number(perStudentLimit)
-  const limitAnswered = perStudentLimit.trim() !== '' && !countError(perStudentLimit, { min: 1 })
+  const limitAnswered = perStudentLimit.trim() !== '' && !countError(perStudentLimit, { min: 1, max: PER_STUDENT_LIMIT_MAX })
   // Point cost and stock are whole numbers up to 10,00,000 (decision 154, ruling 8).
   const countsValid = !countError(pointCost, { min: 1 }) && (isOnlinePartner || !countError(stock))
   // Only a CREATE is blocked: the two fields are required on `POST /coupons`, while a PATCH
@@ -297,6 +297,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
         <TextField
           kind="count"
           countMin={1}
+          countMax={PER_STUDENT_LIMIT_MAX}
           label="Claims per student"
           type="number"
           required

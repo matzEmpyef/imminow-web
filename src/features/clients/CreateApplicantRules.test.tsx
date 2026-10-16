@@ -106,7 +106,7 @@ describe('Create Applicant: the rules', () => {
     renderModal()
     fill({ Phone: '5876543210' })
     expect(create()).toBeDisabled()
-    expect(screen.getByText('An Indian (+91) number has 10 digits and starts with 6, 7, 8 or 9.')).toBeInTheDocument()
+    expect(screen.getByText('Indian numbers must be 10 digits and start with 6, 7, 8 or 9.')).toBeInTheDocument()
   })
 
   it('puts a sentence the server names beside its field, once, until the field is changed', async () => {

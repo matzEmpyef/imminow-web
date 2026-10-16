@@ -40,7 +40,7 @@ describe('the college form', () => {
     open()
     type(/^Website/, 'http://royal.example.edu')
     fireEvent.blur(screen.getByLabelText(/^Website/))
-    expect(screen.getAllByText('Enter a web address that starts with https:// (up to 2048 characters).').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Enter a web address that starts with https://, for example https://example.com.').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
     type(/^Website/, ' https://royal.example.edu ')
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()

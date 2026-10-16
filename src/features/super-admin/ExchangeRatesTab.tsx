@@ -11,7 +11,7 @@ import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { SettingsUsedIn } from './SettingsUsedIn'
-import { MONEY_MAX } from '@/lib/validation'
+import { EXCHANGE_RATE_MAX, EXCHANGE_RATE_MIN, exchangeRateError } from '@/lib/validation'
 
 type ExchangeRate = components['schemas']['ExchangeRate']
 
@@ -247,10 +247,12 @@ function RateFormModal({
   const [currency, setCurrency] = useState(rate?.currency ?? presetCurrency ?? '')
   const [inrPerUnit, setInrPerUnit] = useState(rate ? String(rate.inr_per_unit) : '')
   const [confirming, setConfirming] = useState(false)
+  const [rateTouched, setRateTouched] = useState(false)
   const code = currency.trim().toUpperCase()
   const isBase = code === BASE_CURRENCY
   const next = Number(inrPerUnit)
-  const valid = code.length === 3 && next > 0 && !isBase
+  const rateProblem = exchangeRateError(inrPerUnit)
+  const valid = code.length === 3 && inrPerUnit.trim() !== '' && !rateProblem && !isBase
   // The rate being replaced: the row being edited, or — when "Add Currency" is given a code the
   // table already holds — that row, since saving it is an overwrite all the same.
   const current = rate ?? (rates.data ?? []).find((r) => r.currency === code)
@@ -297,7 +299,7 @@ function RateFormModal({
       <form id="rate-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
           label="Currency code"
-          limit={10}
+          limit={3}
           required
           value={currency}
           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -312,8 +314,10 @@ function RateFormModal({
           required
           type="number"
           step="any"
-          min="0"
-          max={MONEY_MAX}
+          min={EXCHANGE_RATE_MIN}
+          max={EXCHANGE_RATE_MAX}
+          error={rateTouched ? rateProblem : undefined}
+          onBlur={() => setRateTouched(true)}
           value={inrPerUnit}
           onChange={(e) => setInrPerUnit(e.target.value)}
         />

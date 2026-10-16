@@ -1418,12 +1418,16 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
           <TextField
             label="Minimum value"
             type="number"
+            min="0"
+            max={100000}
             value={minValue}
             onChange={(e) => setMinValue(e.target.value)}
           />
           <TextField
             label="Maximum value"
             type="number"
+            min="0"
+            max={100000}
             value={maxValue}
             onChange={(e) => setMaxValue(e.target.value)}
           />
@@ -1431,7 +1435,7 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
         <TextField
           kind="count"
           countMin={1}
-          countMax={1200}
+          countMax={600}
           label="Validity (months — blank if never expires)"
           type="number"
           value={validityMonths}

@@ -233,9 +233,9 @@ describe('MoneyField limits', () => {
     expect(screen.queryByText(MONEY_SENTENCE)).toBeNull()
   })
 
-  it('refuses an amount above 99,99,99,999.99', () => {
-    render(<Money start="10000000000" />)
+  it('refuses an amount above 99,99,99,999.99 (the server limit)', () => {
+    render(<Money start="1000000000" />)
     expect(screen.getByText(MONEY_SENTENCE)).toBeInTheDocument()
-    expect(screen.getByLabelText('Amount')).toHaveAttribute('max', '9999999999.99')
+    expect(screen.getByLabelText('Amount')).toHaveAttribute('max', '999999999.99')
   })
 })

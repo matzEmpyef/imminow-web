@@ -372,6 +372,7 @@ export function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onCl
             <TextField
               kind="count"
               countMin={1}
+              countMax={1000}
               label="Priority"
               type="number"
               required

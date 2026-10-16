@@ -10,7 +10,7 @@ import { showToast } from '@/lib/toast'
 import { SelectField } from '@/components/SelectField'
 import { useEarnRules, useProfileMilestones, useUpdateEarnRule } from '@/queries/earnRules'
 import type { components } from '@/api/schema'
-import { COUNT_MAX, SEARCH_MAX, countError } from '@/lib/validation'
+import { COUNT_MAX, EVENT_POINTS_MAX, SEARCH_MAX, countError } from '@/lib/validation'
 
 type EarnRule = components['schemas']['EarnRule']
 type CapPeriod = EarnRule['cap_period']
@@ -221,6 +221,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
           <TextField
             kind="count"
             countMin={1}
+            countMax={EVENT_POINTS_MAX}
             label="Points"
             type="number"
             required

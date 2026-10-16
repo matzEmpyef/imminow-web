@@ -123,7 +123,7 @@ describe('Edit Employee', () => {
   it('holds an edited number to the rule', () => {
     open('+919876543210')
     fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '5876543210' } })
-    expect(screen.getByText('An Indian (+91) number has 10 digits and starts with 6, 7, 8 or 9.')).toBeInTheDocument()
+    expect(screen.getByText('Indian numbers must be 10 digits and start with 6, 7, 8 or 9.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled()
   })
 

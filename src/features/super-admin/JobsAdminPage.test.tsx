@@ -450,7 +450,7 @@ describe('the job form: the link and the dates', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
     expect(createMutate).not.toHaveBeenCalled()
     expect(
-      within(dialog).getAllByText('Enter a web address that starts with https:// (up to 2048 characters).').length,
+      within(dialog).getAllByText('Enter a web address that starts with https://, for example https://example.com.').length,
     ).toBeGreaterThan(0)
   })
 

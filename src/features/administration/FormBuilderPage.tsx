@@ -234,7 +234,7 @@ function FormEditor() {
         </div>
 
         <Card>
-          <TextField kind="label" label="Form name" value={name} onChange={(e) => setName(e.target.value)} />
+          <TextField kind="title" label="Form name" value={name} onChange={(e) => setName(e.target.value)} />
         </Card>
 
         <Card>

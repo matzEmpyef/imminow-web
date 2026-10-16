@@ -93,7 +93,7 @@ function MeetingFormModal({
   // validation message, rather than the two forms disagreeing about whether an event needs an end.
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
   // Capacity up to 10,00,000 and event points up to 1,00,000, whole numbers (decision 154, ruling 8).
-  const countsValid = !countError(capacity) && !countError(pointsOverride, { max: EVENT_POINTS_MAX })
+  const countsValid = !countError(capacity, { min: 1 }) && !countError(pointsOverride, { max: EVENT_POINTS_MAX })
   // TIME RULES (assumptions audit C16, approved 2026-09-19), mirroring the server's own: nothing
   // is created in the past; once a meeting has started its start is fixed and its end can only be
   // extended. Compared as wall clocks in the VENUE's zone, which is the clock these fields are
@@ -259,7 +259,7 @@ function MeetingFormModal({
           </p>
         </div>
         <div className="grid grid-cols-2 gap-sm">
-          <TextField kind="count" label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+          <TextField kind="count" countMin={1} label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           <TextField
             kind="count"
             countMax={EVENT_POINTS_MAX}

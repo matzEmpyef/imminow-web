@@ -117,7 +117,7 @@ function AddRow({
   return (
     <div className="flex items-center gap-sm">
       <TextField
-        kind="label"
+        kind="title"
         label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -300,7 +300,7 @@ export function AddComponentModal({
         </SelectField>
 
         {type !== 'text' && type !== 'file_upload' && (
-          <TextField kind="label" label="Label" value={draft.label} onChange={(e) => update({ label: e.target.value })} />
+          <TextField kind="title" label="Label" value={draft.label} onChange={(e) => update({ label: e.target.value })} />
         )}
 
         {type === 'text' && (
@@ -452,7 +452,7 @@ export function AddComponentModal({
             </SelectField>
             {draft.documentTypeId === OTHER_DOCUMENT && (
               <TextField
-                kind="label"
+                kind="title"
                 label="Document name"
                 required
                 value={draft.label}
@@ -462,7 +462,7 @@ export function AddComponentModal({
             )}
             {chosenDocument?.cardinality === 'instance' && (
               <TextField
-                kind="label"
+                kind="title"
                 label="Which one? (optional)"
                 value={draft.documentDetail}
                 onChange={(e) => update({ documentDetail: e.target.value })}
@@ -488,7 +488,7 @@ export function AddComponentModal({
               error={draft.url.trim() && !urlValid ? URL_SENTENCE : undefined}
             />
             <TextField
-              kind="label"
+              kind="title"
               label="Button text"
               value={draft.buttonText}
               onChange={(e) => update({ buttonText: e.target.value })}

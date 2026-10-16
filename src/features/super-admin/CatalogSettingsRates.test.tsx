@@ -102,6 +102,22 @@ describe('exchange rate confirmation (owner decision 11)', () => {
     expect(screen.queryByRole('dialog', { name: /Change the CAD rate/ })).not.toBeInTheDocument()
   })
 
+  it('does not send a rate the server would refuse (more than 0.0001, less than 1,00,000)', async () => {
+    renderWithClient(<ExchangeRatesTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit CAD rate' }))
+    const form = screen.getByRole('dialog', { name: 'Edit CAD Rate' })
+    const rate = within(form).getByLabelText(/₹ per unit of this currency/)
+    for (const bad of ['100000', '0.0001', '250000']) {
+      fireEvent.change(rate, { target: { value: bad } })
+      fireEvent.blur(rate)
+      expect(within(form).getByText('Enter a rate of more than 0.0001 and less than 1,00,000.')).toBeInTheDocument()
+      expect(within(form).getByRole('button', { name: 'Save Rate' })).toBeDisabled()
+    }
+    fireEvent.change(rate, { target: { value: '99999' } })
+    expect(within(form).getByRole('button', { name: 'Save Rate' })).toBeEnabled()
+    expect(mockedPut).not.toHaveBeenCalled()
+  })
+
   it('the rupee row is fixed at 1 and cannot be edited, here or through Add Currency', async () => {
     renderWithClient(<ExchangeRatesTab />)
     await screen.findByRole('button', { name: 'Edit CAD rate' })

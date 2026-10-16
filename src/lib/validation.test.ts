@@ -5,6 +5,7 @@ import {
   DATE_RANGE_SENTENCE,
   DATE_SENTENCE,
   EMAIL_ERROR,
+  EXCHANGE_RATE_SENTENCE,
   INDIA_PHONE_SENTENCE,
   MONEY_DECIMALS_ERROR,
   MONEY_OR_ZERO_SENTENCE,
@@ -29,6 +30,7 @@ import {
   dateOfBirthError,
   dateRangeError,
   emailError,
+  exchangeRateError,
   fieldKindError,
   fieldKindLimit,
   firstChar,
@@ -261,7 +263,8 @@ describe('money', () => {
   it('accepts 0.01 up to 99,99,99,999.99', () => {
     expect(moneyError('0.01')).toBeUndefined()
     expect(moneyError('5000')).toBeUndefined()
-    expect(moneyError('9999999999.99')).toBeUndefined()
+    expect(moneyError('999999999.99')).toBeUndefined()
+    expect(moneyError('1000000000')).toBe(MONEY_SENTENCE)
   })
 
   it('refuses zero unless there is a "no charge" choice', () => {
@@ -412,5 +415,53 @@ describe('a name in a single full-name box', () => {
     expect(nameFits('सुनीता शर्मा')).toBe(true)
     expect(nameFits('Sunita 2')).toBe(false)
     expect(nameFits('   ')).toBe(false)
+  })
+})
+
+describe('limits the server publishes (Phase 9 step 8)', () => {
+  it('holds an amount to 999,999,999.99, as the server does', () => {
+    expect(moneyError('999999999.99')).toBeUndefined()
+    expect(moneyError('1000000000')).toBe(MONEY_SENTENCE)
+    expect(moneyError('1000000000', { allowZero: true })).toBe(MONEY_OR_ZERO_SENTENCE)
+  })
+
+  it('holds an exchange rate above 0.0001 and below 1,00,000', () => {
+    expect(exchangeRateError('0.0001')).toBe(EXCHANGE_RATE_SENTENCE)
+    expect(exchangeRateError('0.00011')).toBeUndefined()
+    expect(exchangeRateError('83.2')).toBeUndefined()
+    expect(exchangeRateError('99999.99')).toBeUndefined()
+    expect(exchangeRateError('100000')).toBe(EXCHANGE_RATE_SENTENCE)
+    expect(exchangeRateError('')).toBeUndefined()
+  })
+
+  it('refuses an email whose part before the @ is over 64 characters', () => {
+    expect(isValidEmail(`${'a'.repeat(64)}@example.com`)).toBe(true)
+    expect(isValidEmail(`${'a'.repeat(65)}@example.com`)).toBe(false)
+  })
+
+  it('lets a phone be typed up to 32 characters', () => {
+    expect(fieldKindLimit('phone')).toBe(32)
+  })
+
+  it('says a search over 100 characters the way the server does', () => {
+    expect(fieldKindError('search', 'x'.repeat(101))).toBe('Searches can be up to 100 characters.')
+    expect(fieldKindError('search', 'x'.repeat(100))).toBeUndefined()
+  })
+
+  it('takes a full name to 200 characters and a short line to 500', () => {
+    expect(fieldKindLimit('fullName')).toBe(200)
+    expect(checkText('fullName', 'a'.repeat(200))).toBeUndefined()
+    expect(checkText('fullName', 'a'.repeat(201))).toBeDefined()
+    expect(checkText('fullName', 'Asha 2')).toBeDefined()
+    expect(checkText('name', 'a'.repeat(101))).toBe(NAME_SENTENCE)
+    expect(fieldKindLimit('shortText')).toBe(500)
+    expect(checkText('shortText', 'x'.repeat(500))).toBeUndefined()
+    expect(checkText('shortText', 'x'.repeat(501))).toBe('Use up to 500 characters.')
+  })
+
+  it('accepts the typographic hyphen in a name and counts letters after folding to NFC', () => {
+    expect(checkText('name', 'Anne‐Marie')).toBeUndefined()
+    // 100 letters "e" + combining acute = 100 characters once folded (the server counts them so).
+    expect(checkText('label', 'é'.repeat(100))).toBeUndefined()
   })
 })

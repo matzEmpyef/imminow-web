@@ -80,6 +80,10 @@ export function cleanText(text: string): string {
 // ---------------------------------------------------------------------------------------------
 
 export const NAME_MAX = 100
+/** A name typed into one full-name box (two names of 100). */
+export const FULL_NAME_MAX = 200
+/** A short free line: visiting hours, a caption. */
+export const SHORT_TEXT_MAX = 500
 export const LABEL_MAX = 100
 export const TITLE_MAX = 200
 export const ADDRESS_LINE_MAX = 200
@@ -90,14 +94,29 @@ export const LONG_TEXT_MAX = 5000
 export const CHAT_MAX = 4000
 export const EMAIL_MAX = 254
 export const SEARCH_MAX = 100
+export const SEARCH_TOO_LONG_SENTENCE = 'Searches can be up to 100 characters.'
 export const URL_MAX = 2048
 export const PASSWORD_MAX = 256
+/** The longest phone number the server reads as typed, separators and all. */
+export const PHONE_TYPED_MAX = 32
+/** The longest part of an email before the @ (the server refuses a longer one). */
+export const EMAIL_LOCAL_MAX = 64
 
 /** Where a live counter appears: from this share of the limit upward. */
 export const COUNTER_FROM = 0.9
 
 export type TextKind =
-  'name' | 'label' | 'title' | 'address' | 'reason' | 'erasureReason' | 'note' | 'longText' | 'chat'
+  | 'name'
+  | 'fullName'
+  | 'label'
+  | 'title'
+  | 'address'
+  | 'shortText'
+  | 'reason'
+  | 'erasureReason'
+  | 'note'
+  | 'longText'
+  | 'chat'
 
 interface TextRule {
   max: number
@@ -112,13 +131,17 @@ interface TextRule {
 
 export const NAME_SENTENCE =
   'Use letters, spaces, hyphens, apostrophes and full stops only (no digits), up to 100 characters.'
+export const FULL_NAME_SENTENCE =
+  'Use letters, spaces, hyphens, apostrophes and full stops only (no digits), up to 200 characters.'
 export const SPACES_ONLY_SENTENCE = 'Enter some text, not only spaces.'
 
 export const TEXT_RULES: Record<TextKind, TextRule> = {
   name: { max: NAME_MAX, min: 1, sentence: NAME_SENTENCE },
+  fullName: { max: FULL_NAME_MAX, min: 1, sentence: FULL_NAME_SENTENCE },
   label: { max: LABEL_MAX, min: 1, sentence: 'Use up to 100 characters.' },
   title: { max: TITLE_MAX, min: 1, sentence: 'Use up to 200 characters.' },
   address: { max: ADDRESS_LINE_MAX, min: 1, sentence: 'Use up to 200 characters.' },
+  shortText: { max: SHORT_TEXT_MAX, min: 1, sentence: 'Use up to 500 characters.' },
   reason: { max: REASON_MAX, min: REASON_MIN, empty: 'Add a reason.', sentence: 'Enter 3 to 2000 characters.' },
   // A legal request must say what it is: the server refuses a shorter reason.
   erasureReason: {
@@ -139,9 +162,9 @@ export function textLimit(kind: TextKind): number {
 }
 
 // Letters of any script and the marks that belong to them (vowel signs, viramas), the zero-width
-// joiners Indian scripts use inside a letter group, then space, hyphen, apostrophe, full stop.
+// joiners Indian scripts use inside a letter group, then space, hyphen (also U+2010), apostrophe, full stop.
 // Digits and every other symbol are left out.
-const NAME_RE = /^(?:[\p{L}\p{M}]|\u200c|\u200d)(?:[\p{L}\p{M} .'’-]|\u200c|\u200d)*$/u
+const NAME_RE = /^(?:[\p{L}\p{M}]|\u200c|\u200d)(?:[\p{L}\p{M} .'’‐-]|\u200c|\u200d)*$/u
 
 /** True when the text, as a person's name, has only the characters a name may have. */
 export function isNameText(text: string): boolean {
@@ -161,14 +184,16 @@ export function cleanName(text: string): string {
  */
 export function checkText(kind: TextKind, value: string, options: { optional?: boolean } = {}): string | undefined {
   const rule = TEXT_RULES[kind]
-  const trimmed = kind === 'name' ? cleanName(value) : cleanText(value)
+  const isPerson = kind === 'name' || kind === 'fullName'
+  const trimmed = isPerson ? cleanName(value) : cleanText(value)
   if (trimmed === '') {
     if (value !== '') return SPACES_ONLY_SENTENCE
     return options.optional || rule.optional ? undefined : (rule.empty ?? rule.sentence)
   }
-  const length = charLength(trimmed)
+  // The server counts characters after folding to NFC form (a letter and its accent typed apart are one).
+  const length = charLength(trimmed.normalize('NFC'))
   if (length > rule.max || length < rule.min) return rule.sentence
-  if (kind === 'name' && !isNameText(trimmed)) return NAME_SENTENCE
+  if (isPerson && !isNameText(trimmed)) return rule.sentence
   return undefined
 }
 
@@ -192,7 +217,8 @@ export function normaliseEmail(value: string): string {
 
 export function isValidEmail(value: string): boolean {
   const email = normaliseEmail(value)
-  return charLength(email) <= EMAIL_MAX && EMAIL_RE.test(email)
+  const local = email.slice(0, Math.max(email.lastIndexOf('@'), 0))
+  return charLength(email) <= EMAIL_MAX && charLength(local) <= EMAIL_LOCAL_MAX && EMAIL_RE.test(email)
 }
 
 /** The sentence for an email that is not one, else undefined. Empty is not an error here. */
@@ -211,7 +237,7 @@ export function emailError(value: string): string | undefined {
 export const STAFF_PHONE_SENTENCE = 'Enter the phone number with the country code, for example +919876543210.'
 export const PHONE_ERROR = STAFF_PHONE_SENTENCE
 /** An Indian (+91) number is ten digits and starts with 6, 7, 8 or 9. */
-export const INDIA_PHONE_SENTENCE = 'An Indian (+91) number has 10 digits and starts with 6, 7, 8 or 9.'
+export const INDIA_PHONE_SENTENCE = 'Indian numbers must be 10 digits and start with 6, 7, 8 or 9.'
 
 const INDIA_MOBILE_RE = /^[6-9]\d{9}$/
 
@@ -279,8 +305,8 @@ export function phoneToSend(value: string, region?: string): string {
 // Money, percentages, counts
 // ---------------------------------------------------------------------------------------------
 
-/** The most one entry may hold: 99,99,99,999.99. */
-export const MONEY_MAX = 9_999_999_999.99
+/** The most one entry may hold: 99,99,99,999.99 (999,999,999.99; the server's limit). */
+export const MONEY_MAX = 999_999_999.99
 export const MONEY_SENTENCE = 'Enter an amount from 0.01 to 99,99,99,999.99, with at most two decimal places.'
 export const MONEY_OR_ZERO_SENTENCE = 'Enter an amount from 0 to 99,99,99,999.99, with at most two decimal places.'
 export { MONEY_DECIMALS_ERROR }
@@ -304,6 +330,18 @@ export function moneyError(
   return amount <= MONEY_MAX ? undefined : sentence
 }
 
+/** What the server takes as the rupee value of one unit of another currency: more than 0.0001, less than 1,00,000. */
+export const EXCHANGE_RATE_MIN = 0.0001
+export const EXCHANGE_RATE_MAX = 100_000
+export const EXCHANGE_RATE_SENTENCE = 'Enter a rate of more than 0.0001 and less than 1,00,000.'
+
+/** The sentence for an exchange rate outside the server's bounds, else undefined. Empty is not an error here. */
+export function exchangeRateError(value: string | number | null | undefined): string | undefined {
+  if (value == null || String(value).trim() === '') return undefined
+  const rate = Number(String(value).trim())
+  return Number.isFinite(rate) && rate > EXCHANGE_RATE_MIN && rate < EXCHANGE_RATE_MAX ? undefined : EXCHANGE_RATE_SENTENCE
+}
+
 export const PERCENT_SENTENCE = 'Enter a percentage from 0 to 100, with at most two decimal places.'
 
 /** The sentence for a percentage outside 0 to 100 or with more than two decimals, else undefined. */
@@ -319,6 +357,10 @@ export function percentError(value: string | number | null | undefined): string 
 export const COUNT_MAX = 1_000_000
 export const EVENT_POINTS_MAX = 100_000
 export const BACKLOGS_MAX = 99
+/** How many times one student may claim a coupon (the server's ceiling). */
+export const PER_STUDENT_LIMIT_MAX = 100
+/** The earliest year a university ranking can be recorded for (the server refuses an earlier one). */
+export const RANK_YEAR_MIN = 1990
 
 function grouped(n: number): string {
   return n.toLocaleString('en-IN')
@@ -420,7 +462,7 @@ export function codeError(value: string, range: { min: number; max: number }): s
   return length < range.min || length > range.max || !CODE_RE.test(code) ? codeSentence(range) : undefined
 }
 
-export const URL_SENTENCE = 'Enter a web address that starts with https:// (up to 2048 characters).'
+export const URL_SENTENCE = 'Enter a web address that starts with https://, for example https://example.com.'
 
 export function isValidHttpsUrl(value: string): boolean {
   const text = value.trim()
@@ -479,6 +521,8 @@ export const PAYMENT_REFERENCE_MAX = 200
 /** What a one-line field holds. A form names the kind; the input gets the limit, counter and sentence. */
 export type FieldKind =
   | 'name'
+  | 'fullName'
+  | 'shortText'
   | 'label'
   | 'title'
   | 'address'
@@ -513,6 +557,10 @@ export function fieldKindLimit(kind: FieldKind, options: FieldKindOptions = {}):
   switch (kind) {
     case 'name':
       return NAME_MAX
+    case 'fullName':
+      return FULL_NAME_MAX
+    case 'shortText':
+      return SHORT_TEXT_MAX
     case 'label':
       return LABEL_MAX
     case 'title':
@@ -529,7 +577,7 @@ export function fieldKindLimit(kind: FieldKind, options: FieldKindOptions = {}):
     case 'search':
       return SEARCH_MAX
     case 'phone':
-      return 25
+      return PHONE_TYPED_MAX
     case 'code':
       return (options.codeRange ?? REFERRAL_CODE_LENGTH).max
     default:
@@ -542,6 +590,8 @@ export function fieldKindError(kind: FieldKind, value: string, options: FieldKin
   if (value === '') return undefined
   switch (kind) {
     case 'name':
+    case 'fullName':
+    case 'shortText':
     case 'label':
     case 'title':
     case 'address':
@@ -556,7 +606,7 @@ export function fieldKindError(kind: FieldKind, value: string, options: FieldKin
     case 'url':
       return urlError(value)
     case 'search':
-      return charLength(value) > SEARCH_MAX ? `Search for up to ${SEARCH_MAX} characters.` : undefined
+      return charLength(value) > SEARCH_MAX ? SEARCH_TOO_LONG_SENTENCE : undefined
     case 'code':
       return codeError(value, options.codeRange ?? REFERRAL_CODE_LENGTH)
     case 'percent':
@@ -642,9 +692,6 @@ export function withSafeSearch<T>(query: T): T {
   const safe = typeof search === 'string' ? searchTerm(search) : search
   return (safe === undefined ? rest : { ...rest, search: safe }) as T
 }
-
-/** A name typed into a single full-name box, which may run to 200 characters (two names of 100). */
-export const FULL_NAME_MAX = 200
 
 /** Whether a full name has only the characters a name may have and fits the single box. */
 export function nameFits(text: string, max = FULL_NAME_MAX): boolean {
