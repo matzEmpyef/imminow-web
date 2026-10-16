@@ -15625,7 +15625,10 @@ export interface paths {
                         age_confirmed?: boolean | null;
                         phone?: string | null;
                         address?: string | null;
-                        /** @enum {string} */
+                        /**
+                         * @description Owner's ruling, decision 152 (2026-10-16). A college (an institute account) has only students, never PR applicants: from a college `pr` is refused with 400 `validation_failed`, "A college can add students only. PR applicants are added by consultancies." The refusal comes before the email or phone is looked at, so it holds for a new applicant and for a request to an existing student alike. A consultancy may still send either value. THE CONSOLE shows a college no applicant-type choice and always sends `student`.
+                         * @enum {string}
+                         */
                         case_type: "student" | "pr";
                         /** @description Branch auto-fills from the assigned employee (build reference 2.2) — not collected separately in this form. */
                         assigned_employee_id: components["schemas"]["UUID"];
@@ -15651,7 +15654,7 @@ export interface paths {
                         "application/json": components["schemas"]["ApplicantRequest"];
                     };
                 };
-                /** @description `validation_failed` — a required field is missing or not valid. */
+                /** @description `validation_failed` — a required field is missing or not valid; or a college (an institute account) sent `case_type: pr` ("A college can add students only. PR applicants are added by consultancies."). */
                 400: {
                     headers: {
                         [name: string]: unknown;
