@@ -4,6 +4,8 @@ import { Card } from '@/components/Card'
 import { Modal } from '@/components/Modal'
 import { DISPUTE_ACTIONS, useResolveDispute, type CaseDispute, type DisputeAction } from '@/queries/disputes'
 import { showToast } from '@/lib/toast'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk, checkText } from '@/lib/validation'
 
 /**
  * The decision that ends a dispute (carried over from the pre-rebuild DisputesPage, 2026-09-09).
@@ -26,9 +28,13 @@ export function DisputeResolveModal({
   const [action, setAction] = useState<DisputeAction | ''>('')
   const [note, setNote] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const canSubmit = action !== '' && Boolean(note.trim())
+  const canSubmit = action !== '' && isTextOk('reason', note)
   const actionError = attempted && action === '' ? 'Choose what was decided.' : undefined
-  const noteError = attempted && !note.trim() ? 'Required. Explain what was decided, and why.' : undefined
+  const noteError = attempted && !isTextOk('reason', note)
+      ? note.trim()
+        ? checkText('reason', note)
+        : 'Required. Explain what was decided, and why.'
+      : undefined
 
   function handleResolve() {
     if (!canSubmit) {
@@ -87,7 +93,7 @@ export function DisputeResolveModal({
           <label className="text-body-sm font-medium text-text-primary" htmlFor="dispute-note">
             What was decided, and why
           </label>
-          <textarea
+          <LimitedTextArea kind="note"
             id="dispute-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}

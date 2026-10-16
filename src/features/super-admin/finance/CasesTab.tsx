@@ -19,6 +19,8 @@ import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { FinanceCaseDrawer } from './FinanceCaseDrawer'
 import { inr } from '@/lib/money'
 import { CASE_STATUS_COLOR as STATUS_COLOR, CASE_STATUS_LABEL as STATUS_LABEL } from './caseStatus'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 /**
  * Every active commission case, server-paged (2026-09-11 rebuild) — the platform expects hundreds
@@ -76,7 +78,7 @@ export function CasesTab() {
     overdue: overdueOnly || undefined,
     void_requested: voidRequestsOnly || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'accepted_at',
     cursor: paging.cursor,
     limit: 20,
@@ -318,6 +320,8 @@ export function CasesTab() {
             </CompactSelect>
             <input
               type="date"
+              min={DATE_MIN}
+              max={to || DATE_MAX}
               aria-label="Accepted from"
               value={from}
               onChange={(e) => {
@@ -328,6 +332,8 @@ export function CasesTab() {
             />
             <input
               type="date"
+              min={from || DATE_MIN}
+              max={DATE_MAX}
               aria-label="Accepted to"
               value={to}
               onChange={(e) => {
@@ -336,6 +342,7 @@ export function CasesTab() {
               }}
               className="h-10 rounded-md border border-border bg-background px-3 text-body-sm text-text-primary outline-none focus:border-primary"
             />
+            <DateRangeProblem from={from} to={to} />
           </>
         }
         quickFilters={

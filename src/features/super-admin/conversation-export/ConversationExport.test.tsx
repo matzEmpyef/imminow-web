@@ -173,12 +173,14 @@ describe('asking for a conversation export', () => {
     renderModal()
     await screen.findByLabelText(/Bright Path/)
     expect(screen.getByText('Your reason is kept on the record with your name.')).toBeInTheDocument()
-    expect(screen.getByLabelText(/^Reason/)).toHaveAttribute('maxlength', '500')
+    const reason = screen.getByLabelText(/^Reason/) as HTMLTextAreaElement
+    fireEvent.change(reason, { target: { value: 'x'.repeat(600) } })
+    expect(reason.value).toHaveLength(500)
 
     fireEvent.change(screen.getByLabelText(/^Reason/), { target: { value: ' ab ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Request' }))
     expect(screen.getByText('Choose the consultancy.')).toBeInTheDocument()
-    expect(screen.getByText('Give a reason of at least 3 characters.')).toBeInTheDocument()
+    expect(screen.getByText('Enter 3 to 2000 characters.')).toBeInTheDocument()
     // The note about the record stays beside the error.
     expect(screen.getByText('Your reason is kept on the record with your name.')).toBeInTheDocument()
     expect(mockedPost).not.toHaveBeenCalled()

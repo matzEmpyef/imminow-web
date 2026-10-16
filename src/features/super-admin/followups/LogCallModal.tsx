@@ -63,6 +63,7 @@ export function LogCallModal({ title, outcomeOptions, pending, errorMessage, onC
     >
       <div className="flex flex-col gap-md">
         <TextAreaField
+          kind="note"
           label="Note"
           required
           rows={4}

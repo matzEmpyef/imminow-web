@@ -5,8 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { formatDate } from '@/lib/time'
 import { useDecideInstallmentVoid, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Finance's answer to a consultancy's void of an installment whose share is already due (review
@@ -38,7 +37,7 @@ export function InstallmentVoidDecisionModal({
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
   const approving = decision === 'approve'
-  const invalid = !part.instalment_id || (!approving && trimmedReason.length < MIN_REASON_LENGTH)
+  const invalid = !part.instalment_id || (!approving && trimmedReason.length < REASON_MIN)
 
   return (
     <Modal
@@ -103,6 +102,7 @@ export function InstallmentVoidDecisionModal({
           </p>
         ) : (
           <TextAreaField
+            kind="reason"
             label="Reason"
             required
             rows={3}

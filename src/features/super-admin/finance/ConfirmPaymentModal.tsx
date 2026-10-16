@@ -11,8 +11,7 @@ import { money, paymentInrNote, paymentMoney } from './money'
 import { CaseOwesRows } from './CaseOwesRows'
 import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
@@ -69,7 +68,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const invalid =
     !isValidAmount ||
     awaitingPreview ||
-    (needsNote && trimmedNote.length < MIN_REASON_LENGTH) ||
+    (needsNote && trimmedNote.length < REASON_MIN) ||
     (overpaymentShown && !allowOverpayment)
 
   // What the case owes NOW (fallen due), before the preview has answered: the list's figure for this
@@ -160,7 +159,6 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
 
         <MoneyField
           label={`Amount received (${currency})`}
-          min={0}
           required
           value={receivedAmount}
           onChange={(e) => changeAmount(e.target.value)}
@@ -204,6 +202,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
 
         {needsNote && (
           <TextAreaField
+            kind="reason"
             label="Why is it different?"
             required
             rows={3}

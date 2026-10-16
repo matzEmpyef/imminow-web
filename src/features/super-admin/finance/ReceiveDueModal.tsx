@@ -415,7 +415,7 @@ export function ReceiveDueModal({
           maxLength={PAYMENT_REFERENCE_MAX}
           error={duplicateReference}
         />
-        <TextAreaField label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        <TextAreaField kind="note" label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <p className="text-caption text-text-secondary">
           Records the money as received — no declaration from the consultancy is needed. They&rsquo;re told.
         </p>

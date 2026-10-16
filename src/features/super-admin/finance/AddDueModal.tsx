@@ -9,8 +9,7 @@ import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN, checkText } from '@/lib/validation'
 
 /**
  * Adds a second instalment or agreed extra to what a case owes immiNow (2026-09-11) — separate
@@ -42,7 +41,7 @@ export function AddDueModal({
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(addDue.error, 'amount')
   const trimmedReason = reason.trim()
-  const invalid = !isValidAmount || trimmedReason.length < MIN_REASON_LENGTH
+  const invalid = !isValidAmount || trimmedReason.length < REASON_MIN
 
   const amountError = !attempted
     ? undefined
@@ -51,7 +50,7 @@ export function AddDueModal({
       : !isValidAmount
         ? 'Amount must be greater than 0.'
         : undefined
-  const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
+  const reasonError = attempted ? checkText('reason', reason) : undefined
 
   return (
     <Modal
@@ -138,6 +137,7 @@ export function AddDueModal({
           />
         </div>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

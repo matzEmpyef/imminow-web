@@ -5,9 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { paymentInrNote, paymentMoney } from './money'
 import { useRejectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
-
-const MIN_REASON_LENGTH = 3
-
+import { REASON_MIN } from '@/lib/validation'
 
 /** Turns a declared payment down with a reason the consultancy is shown (2026-09-11 rebuild). */
 export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
@@ -31,7 +29,7 @@ export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPa
           <Button
             variant="destructive"
             loading={reject.isPending}
-            disabled={trimmed.length < MIN_REASON_LENGTH}
+            disabled={trimmed.length < REASON_MIN}
             onClick={() =>
               reject.mutate(
                 { paymentId: payment.id, reason: trimmed },
@@ -56,6 +54,7 @@ export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPa
           {payment.applicant_name ? ` for ${payment.applicant_name}` : ''}.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={4}

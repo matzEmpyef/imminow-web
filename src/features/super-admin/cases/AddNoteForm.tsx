@@ -3,6 +3,7 @@ import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextAreaField } from '@/components/TextAreaField'
 import { NOTE_OUTCOME_OPTIONS } from './labels'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * The "log what happened" form on the Complaints and Disputes drawers (2026-09-11) — a note plus
@@ -22,7 +23,7 @@ export function AddNoteForm({
   const [outcome, setOutcome] = useState('')
 
   function handleAdd() {
-    if (!note.trim()) return
+    if (!isTextOk('reason', note)) return
     onAdd(note.trim(), outcome || undefined)
     setNote('')
     setOutcome('')
@@ -31,6 +32,7 @@ export function AddNoteForm({
   return (
     <div className="flex flex-col gap-sm rounded-md border border-border p-sm">
       <TextAreaField
+        kind="note"
         label="Add a note"
         rows={3}
         value={note}
@@ -46,7 +48,7 @@ export function AddNoteForm({
             </option>
           ))}
         </CompactSelect>
-        <Button size="sm" disabled={!note.trim()} loading={pending} onClick={handleAdd}>
+        <Button size="sm" disabled={!isTextOk('reason', note)} loading={pending} onClick={handleAdd}>
           Add
         </Button>
       </div>

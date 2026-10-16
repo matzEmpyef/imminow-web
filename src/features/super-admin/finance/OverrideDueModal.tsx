@@ -8,8 +8,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions, money } from './money'
 import { useOverrideCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Overrides immiNow's calculated share on a case (2026-09-11) — replaces the old "Edit original
@@ -43,7 +42,7 @@ export function OverrideDueModal({
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(overrideDue.error, 'amount')
   const invalid =
-    mode === 'clear' ? trimmedReason.length < MIN_REASON_LENGTH : !isValidAmount || trimmedReason.length < MIN_REASON_LENGTH
+    mode === 'clear' ? trimmedReason.length < REASON_MIN : !isValidAmount || trimmedReason.length < REASON_MIN
 
   function partAmount(part: CommissionDuePart): string {
     return money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
@@ -119,7 +118,6 @@ export function OverrideDueModal({
             <div className="flex items-center gap-sm">
               <MoneyField
                 label="Amount"
-                min={0}
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -150,6 +148,7 @@ export function OverrideDueModal({
         )}
 
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

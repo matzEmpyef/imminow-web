@@ -6,8 +6,7 @@ import { money } from './money'
 import { useWaiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Closes a due part without payment (2026-09-11) — the consultancy owes nothing more on it, with a
@@ -33,7 +32,7 @@ export function CloseDueModal({
   const [reason, setReason] = useState('')
   const { keyFor, settle } = usePayloadIdempotencyKey()
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < MIN_REASON_LENGTH || !part.key
+  const invalid = trimmedReason.length < REASON_MIN || !part.key
   const outstanding = money({ amount: part.outstanding ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
 
   return (
@@ -86,6 +85,7 @@ export function CloseDueModal({
           Stops this part counting as outstanding or overdue. It can be reopened later.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

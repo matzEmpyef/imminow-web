@@ -10,8 +10,7 @@ import { money, paymentInrNote, paymentMoney } from './money'
 import { useCorrectCommissionPayment, useCorrectPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN, checkText } from '@/lib/validation'
 
 /**
  * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
@@ -43,7 +42,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
     parsed < 0 ||
     hasTooManyDecimals(amount) ||
     parsed === currentAmount ||
-    trimmedReason.length < MIN_REASON_LENGTH
+    trimmedReason.length < REASON_MIN
   const corrections = payment.corrections ?? []
 
   const amountError = !attempted
@@ -55,7 +54,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
         : parsed === currentAmount
           ? 'That’s the amount already on record — change it or cancel.'
           : undefined
-  const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
+  const reasonError = attempted ? checkText('reason', reason) : undefined
 
   // The corrected amount as it would be sent, asked of the server after a short pause in typing;
   // none goes while it is not a valid amount, or is the amount already on record.
@@ -151,7 +150,6 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
 
         <MoneyField
           label={`New amount received (${currency})`}
-          min={0}
           required
           value={amount}
           onChange={(e) => {
@@ -195,6 +193,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           </div>
         )}
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal'
 import { TextAreaField } from '@/components/TextAreaField'
 import { useUpdateComplaint, type Complaint } from '@/queries/complaints'
 import { showToast } from '@/lib/toast'
+import { isTextOk, checkText } from '@/lib/validation'
 
 /**
  * Resolves a complaint (2026-09-11) — mirrors the mandatory-reason convention every other
@@ -24,10 +25,10 @@ export function ComplaintResolveModal({
   const [note, setNote] = useState('')
   const [attempted, setAttempted] = useState(false)
   const blocked = complaint.dispute_status === 'open'
-  const noteError = attempted && !note.trim() ? 'Add a resolution note.' : undefined
+  const noteError = attempted && !isTextOk('reason', note) ? (note.trim() ? checkText('reason', note) : 'Add a resolution note.') : undefined
 
   function handleResolve() {
-    if (!note.trim()) {
+    if (!isTextOk('reason', note)) {
       setAttempted(true)
       return
     }
@@ -67,6 +68,7 @@ export function ComplaintResolveModal({
           </p>
         )}
         <TextAreaField
+          kind="note"
           label="Resolution note"
           required
           rows={4}

@@ -6,6 +6,7 @@ import { StillNeeded } from '@/components/StillNeeded'
 import { TextAreaField } from '@/components/TextAreaField'
 import { useCommissionDefaults, useUpdateCommissionDefaults } from '@/queries/commissionRates'
 import { showToast } from '@/lib/toast'
+import { REASON_MIN, percentError } from '@/lib/validation'
 
 // Narrow inline number field — a full TextField's 48px pill with a floating label reads as its
 // own form row, which is too heavy for a compact "value next to its hint" card row. No visible
@@ -17,7 +18,7 @@ function InlineNumberInput({
   onChange,
   ariaLabel,
   max = 100,
-  step = '0.1',
+  step = '0.01',
 }: {
   value: string
   onChange: (value: string) => void
@@ -53,7 +54,6 @@ function DefaultRow({ label, hint, children }: { label: string; hint: string; ch
 }
 
 // A change to the defaults is kept with the reason it was made for (Phase 8 T2-04 / T4-09).
-const MIN_REASON_LENGTH = 3
 
 type DefaultKey = 'consultancy_percent' | 'freelancer_percent' | 'institute_percent' | 'payment_terms_days'
 
@@ -119,7 +119,7 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
   const [initialized, setInitialized] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [reason, setReason] = useState('')
-  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
+  const reasonOk = reason.trim().length >= REASON_MIN
 
   const fromServer = (data: typeof defaults.data): Record<DefaultKey, string> => ({
     consultancy_percent: String(data?.consultancy_percent ?? ''),
@@ -140,7 +140,8 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
   const valid = (f: (typeof FIELDS)[number]) => {
     const v = values[f.key]
     if (v === '' || Number.isNaN(Number(v)) || Number(v) < 0) return false
-    return f.unit === 'days' ? Number.isInteger(Number(v)) && Number(v) <= 365 : Number(v) <= 100
+    // A percentage is 0 to 100 with at most two decimals (decision 154, ruling 6).
+    return f.unit === 'days' ? Number.isInteger(Number(v)) && Number(v) <= 365 : !percentError(v)
   }
   const dirty = changed.length > 0
   const canSave = dirty && FIELDS.every(valid)
@@ -187,7 +188,7 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
                 onChange={(v) => setValues((prev) => ({ ...prev, [f.key]: v }))}
                 ariaLabel={f.ariaLabel}
                 max={f.unit === 'days' ? 365 : 100}
-                step={f.unit === 'days' ? '1' : '0.1'}
+                step={f.unit === 'days' ? '1' : '0.01'}
               />
               <span className="text-body-sm text-text-primary">{f.unit}</span>
             </span>
@@ -250,6 +251,7 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
               Payment terms apply to parts that fall due from now on.
             </p>
             <TextAreaField
+              kind="reason"
               label="Reason"
               required
               rows={2}

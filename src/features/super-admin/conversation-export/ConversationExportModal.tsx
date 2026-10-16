@@ -18,8 +18,8 @@ import {
   type ConversationExport,
   type StudentConversation,
 } from '@/queries/conversationExports'
+import { checkText, REASON_MIN } from '@/lib/validation'
 
-const REASON_MIN = 3
 const REASON_MAX = 500
 
 type Ready = { id: string; url: string; minutes: number }
@@ -79,7 +79,7 @@ export function ConversationExportModal({
 
   const trimmed = reason.trim()
   const reasonError =
-    attempted && trimmed.length < REASON_MIN ? `Give a reason of at least ${REASON_MIN} characters.` : undefined
+    attempted ? checkText('reason', reason) : undefined
   const consultancyError = attempted && !selected ? 'Choose the consultancy.' : undefined
 
   function handleRequest() {
@@ -250,6 +250,7 @@ export function ConversationExportModal({
 
             <div className="flex flex-col gap-xs">
               <TextAreaField
+                kind="reason"
                 label="Reason"
                 required
                 rows={2}

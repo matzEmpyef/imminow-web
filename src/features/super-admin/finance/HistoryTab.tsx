@@ -14,6 +14,8 @@ import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { CorrectPaymentModal } from './CorrectPaymentModal'
 import { PAYMENT_HISTORY_COLUMNS } from './paymentHistoryCsv'
 import { downloadCsv, toCsv } from '@/lib/csv'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 
 type StatusFilter = '' | 'confirmed' | 'rejected'
@@ -49,7 +51,7 @@ export function HistoryTab() {
     status: statusFilterValue(status),
     consultancy_id: consultancyId || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
   }
 
   const payments = useFinancePayments({ ...filters, cursor: paging.cursor, limit: 20 })
@@ -210,6 +212,8 @@ export function HistoryTab() {
             />
             <input
               type="date"
+              min={DATE_MIN}
+              max={to || DATE_MAX}
               aria-label="From"
               value={from}
               onChange={(e) => {
@@ -220,6 +224,8 @@ export function HistoryTab() {
             />
             <input
               type="date"
+              min={from || DATE_MIN}
+              max={DATE_MAX}
               aria-label="To"
               value={to}
               onChange={(e) => {
@@ -228,6 +234,7 @@ export function HistoryTab() {
               }}
               className="h-10 rounded-md border border-border bg-background px-3 text-body-sm text-text-primary outline-none focus:border-primary"
             />
+            <DateRangeProblem from={from} to={to} />
           </>
         }
         pagination={{

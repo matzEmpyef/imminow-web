@@ -56,6 +56,7 @@ export function ComplaintEscalateModal({
           consultancy is told the case is under review — it never sees this complaint.
         </p>
         <TextAreaField
+          kind="note"
           label="Reason (optional)"
           rows={3}
           value={reason}

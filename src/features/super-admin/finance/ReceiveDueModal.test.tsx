@@ -180,7 +180,9 @@ describe('ReceiveDueModal, it arrived in another currency', () => {
 describe('ReceiveDueModal, the reference', () => {
   it('stops at 200 characters', () => {
     open()
-    expect(screen.getByLabelText('Reference')).toHaveAttribute('maxlength', '200')
+    const reference = screen.getByLabelText('Reference') as HTMLInputElement
+    fireEvent.change(reference, { target: { value: 'r'.repeat(260) } })
+    expect(reference.value).toHaveLength(200)
   })
 
   it('shows the server’s sentence beside the field when the reference is already recorded', () => {

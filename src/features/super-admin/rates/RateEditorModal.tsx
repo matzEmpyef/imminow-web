@@ -13,9 +13,9 @@ import { useCountries } from '@/queries/countries'
 import { ConsultancySearchSelect } from '../finance/ConsultancySearchSelect'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { REASON_MIN, percentError } from '@/lib/validation'
 
 // A rate change is kept with the reason it was made for (Phase 8 T2-04 / T4-09, DECISIONS 134b).
-const MIN_REASON_LENGTH = 3
 
 type CommissionRate = components['schemas']['CommissionRate']
 type PayerMethod = NonNullable<CommissionRate['payer_method']>
@@ -105,7 +105,7 @@ export function RateEditorModal({
   const [existingIds, setExistingIds] = useState<RateIdState>({})
   const [touched, setTouched] = useState(false)
   const [reason, setReason] = useState('')
-  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
+  const reasonOk = reason.trim().length >= REASON_MIN
   // Validation is checked ON SAVE, not while typing (user, 2026-08-28: "do not have display
   // 'Direct % must be between 0 and 100' ... just make sure when saving") — errors render only
   // after a save attempt, and clear per row as the values are fixed.
@@ -170,13 +170,13 @@ export function RateEditorModal({
     for (const key of filledKeys) {
       const direct = Number(matrix[key].direct)
       const freelancer = Number(matrix[key].freelancer)
-      if (matrix[key].direct === '' || Number.isNaN(direct) || direct < 0 || direct > 100) {
-        rowErrors[key] = 'Direct % must be between 0 and 100.'
+      if (matrix[key].direct === '' || Number.isNaN(direct) || percentError(matrix[key].direct)) {
+        rowErrors[key] = 'Direct % must be between 0 and 100, with at most two decimals.'
         continue
       }
       if (freelancerDisabled) continue
-      if (matrix[key].freelancer === '' || Number.isNaN(freelancer) || freelancer < 0 || freelancer > 100) {
-        rowErrors[key] = 'Freelancer-sourced % must be between 0 and 100.'
+      if (matrix[key].freelancer === '' || Number.isNaN(freelancer) || percentError(matrix[key].freelancer)) {
+        rowErrors[key] = 'Freelancer-sourced % must be between 0 and 100, with at most two decimals.'
         continue
       }
       if (freelancer <= direct) {
@@ -325,6 +325,7 @@ export function RateEditorModal({
                     CSS in this project's Tailwind setup (see Modal.tsx), so the old cap never
                     applied and the row's flex squeezed these narrow. */}
                 <TextField
+                  kind="percent"
                   label="Direct %"
                   type="number"
                   min={0}
@@ -335,6 +336,7 @@ export function RateEditorModal({
                 />
                 {!freelancerDisabled && (
                   <TextField
+                    kind="percent"
                     label="Freelancer %"
                     type="number"
                     min={0}
@@ -361,6 +363,7 @@ export function RateEditorModal({
         )}
 
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={2}

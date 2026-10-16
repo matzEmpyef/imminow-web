@@ -6,8 +6,7 @@ import { useVoidFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerPayout } from '@/queries/freelancerReferrals'
 import { showToast } from '@/lib/toast'
 import { inr } from '@/lib/money'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /** Undoes a recorded payout — the amount becomes owed again immediately. */
 export function VoidPayoutModal({ payout, onClose }: { payout: FreelancerPayout; onClose: () => void }) {
@@ -29,7 +28,7 @@ export function VoidPayoutModal({ payout, onClose }: { payout: FreelancerPayout;
           <Button
             variant="destructive"
             loading={voidPayout.isPending}
-            disabled={trimmed.length < MIN_REASON_LENGTH}
+            disabled={trimmed.length < REASON_MIN}
             onClick={() =>
               voidPayout.mutate(
                 { id: payout.id, reason: trimmed },
@@ -53,6 +52,7 @@ export function VoidPayoutModal({ payout, onClose }: { payout: FreelancerPayout;
           {payout.applicant_name ? ` for ${payout.applicant_name}` : ''}. Undoing this makes the amount owed again.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={4}

@@ -10,8 +10,7 @@ import { BatchResultList } from '@/components/BatchResultList'
 import { batchSummary, useBatchRun } from '@/lib/useBatchRun'
 import { paymentInrNote, paymentMoney, paymentsTotalLabel } from './money'
 import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Confirms a batch of declared payments (2026-09-11 Awaiting Confirmation bulk bar). Each row gets
@@ -77,7 +76,7 @@ export function BulkConfirmModal({
       const verdict = verdicts[p.id]
       if (!verdict || verdict.state === 'pending') return false
     }
-    if (needsNote(p) && (notes[p.id] ?? '').trim().length < MIN_REASON_LENGTH) return false
+    if (needsNote(p) && (notes[p.id] ?? '').trim().length < REASON_MIN) return false
     return true
   }
 
@@ -259,7 +258,6 @@ function BulkConfirmRow({
       <div className="flex items-end gap-sm">
         <MoneyField
           label={`Amount received (${currency})`}
-          min={0}
           required
           value={amount}
           onChange={(e) => onAmount(e.target.value)}
@@ -272,7 +270,7 @@ function BulkConfirmRow({
         </p>
       )}
       {needsNote && (
-        <TextField label="Why is it different?" required value={note} onChange={(e) => onNote(e.target.value)} />
+        <TextField kind="reason" label="Why is it different?" required value={note} onChange={(e) => onNote(e.target.value)} />
       )}
     </div>
   )

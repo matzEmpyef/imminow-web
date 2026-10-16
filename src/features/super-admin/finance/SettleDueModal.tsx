@@ -7,8 +7,7 @@ import { money } from './money'
 import { useSettleCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * What the person is told when the difference is above what Finance may write off (403
@@ -48,7 +47,7 @@ export function SettleDueModal({
   const [reason, setReason] = useState('')
   const { keyFor, settle } = usePayloadIdempotencyKey()
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < MIN_REASON_LENGTH || !part.key
+  const invalid = trimmedReason.length < REASON_MIN || !part.key
   const currency = part.currency ?? 'INR'
 
   return (
@@ -116,6 +115,7 @@ export function SettleDueModal({
           written-off figure. The consultancy is told.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

@@ -11,6 +11,8 @@ import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { VoidPayoutModal } from './VoidPayoutModal'
 import { inr } from '@/lib/money'
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 // What the payout export holds. The amount is a number, so a spreadsheet can total the column.
 const PAYOUT_CSV_COLUMNS: CsvColumn<FreelancerPayout>[] = [
@@ -49,7 +51,7 @@ export function PayoutHistoryTab() {
     search: search || undefined,
     freelancer_id: freelancerId || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
     voided: showUndone ? undefined : false,
   }
 
@@ -151,6 +153,8 @@ export function PayoutHistoryTab() {
             />
             <input
               type="date"
+              min={DATE_MIN}
+              max={to || DATE_MAX}
               aria-label="From"
               value={from}
               onChange={(e) => {
@@ -161,6 +165,8 @@ export function PayoutHistoryTab() {
             />
             <input
               type="date"
+              min={from || DATE_MIN}
+              max={DATE_MAX}
               aria-label="To"
               value={to}
               onChange={(e) => {
@@ -169,6 +175,7 @@ export function PayoutHistoryTab() {
               }}
               className="h-10 rounded-md border border-border bg-background px-3 text-body-sm text-text-primary outline-none focus:border-primary"
             />
+            <DateRangeProblem from={from} to={to} />
           </>
         }
         filterActions={

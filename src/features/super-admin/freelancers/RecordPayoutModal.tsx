@@ -88,7 +88,6 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
         </div>
         <MoneyField
           label="Amount (₹)"
-          min={1}
           max={owed}
           required
           value={amount}
