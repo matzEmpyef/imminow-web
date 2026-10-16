@@ -56,7 +56,8 @@ export const useSessionNoticeStore = create<SessionNoticeState>()(() => ({
 
 /** An address inside the console that is safe to send someone to: never the login or link pages. */
 function safePath(path: unknown): string | null {
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return null
+  // A backslash is read as a slash by browsers (`/\host` is `//host`), as `isInAppPath` already knows.
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return null
   const pathname = path.split(/[?#]/)[0]
   if (pathname === '/' || pathname === '') return null
   if (/^\/(login|forgot-password|reset-password|set-password|guardian|webinar)(\/|$)/.test(pathname)) return null
