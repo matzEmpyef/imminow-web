@@ -16,6 +16,7 @@ import { usePermissionGroups } from '@/lib/usePermissionGroups'
 import { useMeStaff } from '@/lib/me'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { isTextOk } from '@/lib/validation'
 
 type Designation = components['schemas']['Designation']
 
@@ -89,8 +90,8 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
             {updateDesignation.isError && (
               <p className="mr-auto self-center text-body-sm text-error">{updateDesignation.error.message}</p>
             )}
-            <StillNeeded items={!dirty ? ['a permission changed'] : !reason ? ['the reason for the change'] : []} />
-            <Button loading={updateDesignation.isPending} disabled={!dirty || !reason} onClick={handleSave}>
+            <StillNeeded items={!dirty ? ['a permission changed'] : !isTextOk('reason', reason) ? ['the reason for the change'] : []} />
+            <Button loading={updateDesignation.isPending} disabled={!dirty || !isTextOk('reason', reason)} onClick={handleSave}>
               Save Changes
             </Button>
           </>
@@ -129,6 +130,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
 
         {dirty && (
           <TextField
+            kind="reason"
             label="Reason for this change (required)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

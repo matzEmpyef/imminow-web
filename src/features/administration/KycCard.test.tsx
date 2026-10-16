@@ -98,7 +98,7 @@ describe('the KYC card', () => {
     await screen.findByText('KYC Verification')
     pick(container, new File(['x'], 'certificate.docx', { type: 'application/msword' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Choose a PDF, or a PNG, JPEG or WebP image.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a PDF, JPEG, PNG or WebP file of up to 10 MB.')
     expect(screen.getByRole('button', { name: 'Submit for verification' })).toBeDisabled()
     expect(mockedPost).not.toHaveBeenCalled()
   })

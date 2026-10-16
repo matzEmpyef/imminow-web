@@ -14,6 +14,7 @@ import { permissionKeys, pickPermissions } from '@/lib/permissions'
 import { usePermissionGroups } from '@/lib/usePermissionGroups'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { isTextOk } from '@/lib/validation'
 
 type Employee = components['schemas']['Employee']
 type Designation = components['schemas']['Designation']
@@ -108,7 +109,7 @@ function AccessModalBody({
   // a control (2026-09-21): a control nobody can submit is not a control.
   const branchesChanged = branchAccessChanged(access, storedAccess)
   const primaryError = primaryBranchError(access)
-  const canSave = (dirty || branchesChanged) && (!dirty || Boolean(reason)) && !primaryError
+  const canSave = (dirty || branchesChanged) && (!dirty || isTextOk('reason', reason)) && !primaryError
 
   function togglePermission(key: string) {
     const effective = key in overrides ? overrides[key] : (baseline[key] ?? false)
@@ -231,6 +232,7 @@ function AccessModalBody({
 
         {dirty && (
           <TextField
+            kind="reason"
             label="Reason for this permission change (required)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

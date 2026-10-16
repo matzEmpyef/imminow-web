@@ -4,6 +4,8 @@ import { Button } from '@/components/Button'
 import { useCloseLead } from '@/queries/leads'
 import { CLOSE_REASONS, type CloseReason } from '@/lib/clientStatus'
 import { showToast } from '@/lib/toast'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 // User-requested — closing a lead that's gone dry. Ultimate tier + `leads.close` gate this
 // button's visibility (LeadConversationPage.tsx); this modal asks for the reason and confirms,
@@ -26,7 +28,7 @@ export function CloseLeadModal({
   const [note, setNote] = useState('')
 
   const noteRequired = reason === 'other'
-  const canSubmit = reason !== '' && (!noteRequired || Boolean(note.trim()))
+  const canSubmit = reason !== '' && (!noteRequired || isTextOk('reason', note))
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -97,7 +99,7 @@ export function CloseLeadModal({
           <label className="text-body-sm font-medium text-text-primary" htmlFor="close-lead-note">
             Note{noteRequired ? '' : ' (optional)'}
           </label>
-          <textarea
+          <LimitedTextArea kind="note"
             id="close-lead-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}

@@ -189,7 +189,7 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="suggest-new-course" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Course name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <TextField kind="title" label="Course name" value={name} onChange={(e) => setName(e.target.value)} required />
         {partners.isLoading ? (
           // Was the words "Loading your partner colleges…" sitting where the College field goes
           // (console review M5, 2026-09-13) — a field-shaped bar reads as a field still arriving.
@@ -245,7 +245,7 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </SelectField>
-        <TextField label="Field of study" value={fieldOfStudy} onChange={(e) => setFieldOfStudy(e.target.value)} />
+        <TextField kind="label" label="Field of study" value={fieldOfStudy} onChange={(e) => setFieldOfStudy(e.target.value)} />
         {suggestNew.isError && <p className="text-body-sm text-error">{suggestNew.error.message}</p>}
       </form>
     </Modal>

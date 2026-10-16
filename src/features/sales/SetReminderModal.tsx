@@ -5,6 +5,8 @@ import { TextField } from '@/components/TextField'
 import { useSetLeadReminder } from '@/queries/leads'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 // Ultimate-only, gated the same way as Activity itself — LeadConversationPage decides whether to
 // render the trigger button, this modal assumes it's already allowed to be open. Always
@@ -20,7 +22,7 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!note.trim() || !date || !time || date < minDate) return
+    if (!isTextOk('reason', note) || !date || !time || date < minDate) return
     setReminder.mutate(
       { note, due_date: date, due_time: time },
       {
@@ -49,7 +51,7 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
             type="submit"
             form="set-reminder-form"
             loading={setReminder.isPending}
-            disabled={!note.trim() || !date || !time || date < minDate}
+            disabled={!isTextOk('reason', note) || !date || !time || date < minDate}
           >
             Set Reminder
           </Button>
@@ -61,7 +63,7 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
           <label className="text-body-sm font-medium text-text-primary" htmlFor="reminder-note">
             Note
           </label>
-          <textarea
+          <LimitedTextArea kind="note"
             id="reminder-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}

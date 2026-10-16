@@ -25,6 +25,9 @@ import { showToast } from '@/lib/toast'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 import { useAccountWords } from '@/lib/accountWords'
 import { DOCUMENT_ACCEPT, DOCUMENT_MIME_LABELS } from '@/lib/documentTypes'
+import { useUploadCheck } from '@/lib/useUploadCheck'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 type LibraryDocument = NonNullable<ReturnType<typeof useDocumentLibrary>['data']>['items'][number]
 
@@ -143,7 +146,7 @@ export function DocumentLibraryPage() {
     tag: tagFilter.length ? tagFilter : undefined,
     mimeType: mimeType || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
@@ -156,6 +159,7 @@ export function DocumentLibraryPage() {
   const setDocumentTags = useSetLibraryDocumentTags()
   const shareDocument = useShareLibraryDocument()
   const uploadDocument = useUploadLibraryDocument()
+  const uploadCheck = useUploadCheck('document')
 
   function resetPaging() {
     paging.reset()
@@ -258,7 +262,8 @@ export function DocumentLibraryPage() {
               id="library-doc-upload"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) uploadDocument.mutate(file, { onSuccess: () => showToast(`${file.name} uploaded`) })
+                if (file && uploadCheck.check(file))
+                  uploadDocument.mutate(file, { onSuccess: () => showToast(`${file.name} uploaded`) })
                 e.target.value = ''
               }}
             />
@@ -275,7 +280,12 @@ export function DocumentLibraryPage() {
         {/* T7 (third-pass review): a failed upload or share used to vanish without a trace —
             the button just returned to rest with the file absent, or the share modal closed
             over a 409 the consultant never saw. */}
-        {uploadDocument.isError && (
+        {uploadCheck.problem && (
+          <p role="alert" className="text-body-sm text-error">
+            {uploadCheck.problem}
+          </p>
+        )}
+        {uploadDocument.isError && !uploadCheck.problem && (
           <p className="text-body-sm text-error">{uploadDocument.error.message}</p>
         )}
         {shareDocument.isError && <p className="text-body-sm text-error">{shareDocument.error.message}</p>}
@@ -332,6 +342,8 @@ export function DocumentLibraryPage() {
               </CompactSelect>
               <input
                 type="date"
+                min={DATE_MIN}
+                max={to || DATE_MAX}
                 value={from}
                 onChange={(e) => {
                   setFrom(e.target.value)
@@ -341,6 +353,8 @@ export function DocumentLibraryPage() {
               />
               <input
                 type="date"
+                min={from || DATE_MIN}
+                max={DATE_MAX}
                 value={to}
                 onChange={(e) => {
                   setTo(e.target.value)
@@ -348,6 +362,7 @@ export function DocumentLibraryPage() {
                 }}
                 className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
               />
+              <DateRangeProblem from={from} to={to} />
             </>
           }
           pagination={{

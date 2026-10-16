@@ -197,7 +197,7 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
 
   return (
     <Card className="flex flex-col gap-md">
-      <TextField label="Template name" value={name} onChange={(e) => setName(e.target.value)} />
+      <TextField kind="label" label="Template name" value={name} onChange={(e) => setName(e.target.value)} />
 
       <div className="flex items-center justify-end gap-xs">
         <button

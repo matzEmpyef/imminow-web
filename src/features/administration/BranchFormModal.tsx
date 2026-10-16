@@ -90,6 +90,7 @@ export function BranchFormModal({ branch, onClose }: { branch?: Branch; onClose:
           field, never the browser's own bubbles, which cannot say "in India". */}
       <form id="branch-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-md">
         <TextField
+          kind="label"
           label="Name"
           required
           value={name}
@@ -98,6 +99,7 @@ export function BranchFormModal({ branch, onClose }: { branch?: Branch; onClose:
         />
         <div className="flex flex-col gap-xs">
           <TextField
+            kind="address"
             label="Street address"
             required
             value={address}

@@ -92,7 +92,7 @@ function AddTagModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-        <TextField label="Tag name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Tag name" required value={name} onChange={(e) => setName(e.target.value)} />
         <p className="text-caption text-text-secondary">Tags apply to leads and clients and can be filtered on in lists.</p>
         {createTag.isError && <p className="text-body-sm text-error">{createTag.error.message}</p>}
       </form>

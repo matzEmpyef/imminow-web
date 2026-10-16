@@ -15,6 +15,7 @@ import { anyEmployeeSource } from '@/queries/pickerSources'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { useAccountWords } from '@/lib/accountWords'
+import { dateRangeError } from '@/lib/validation'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error', view: 'secondary' } as const
 
@@ -59,7 +60,7 @@ export function AuditLogPage() {
     action_type: actionType || undefined,
     area: area || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,

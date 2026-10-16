@@ -8,6 +8,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { showToast } from '@/lib/toast'
 import { useUpdateMyMfaPolicy, type MfaPolicy } from '@/queries/consultancy'
 import type { components } from '@/api/schema'
+import { isTextOk, checkText } from '@/lib/validation'
 
 type Consultancy = components['schemas']['Consultancy']
 
@@ -83,12 +84,16 @@ function MfaPolicyConfirmModal({
   const update = useUpdateMyMfaPolicy()
   const [reason, setReason] = useState('')
   const [touched, setTouched] = useState(false)
-  const reasonError = touched && !reason.trim() ? 'A reason is required for a security change.' : undefined
+  const reasonError = touched && !isTextOk('reason', reason)
+      ? reason.trim()
+        ? checkText('reason', reason)
+        : 'A reason is required for a security change.'
+      : undefined
   const everyone = policy === 'all_staff'
 
   function submit() {
     setTouched(true)
-    if (!reason.trim()) return
+    if (!isTextOk('reason', reason)) return
     update.mutate(
       { mfa_policy: policy, reason: reason.trim() },
       {
@@ -128,6 +133,7 @@ function MfaPolicyConfirmModal({
             : `Only admins at ${consultancyName} will have to use two-factor authentication. Everyone is told now.`}
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={2}

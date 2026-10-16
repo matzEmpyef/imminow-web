@@ -58,6 +58,7 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
     >
       <form id="create-designation-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="label"
           label="Name"
           required
           value={name}

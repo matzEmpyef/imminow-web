@@ -49,7 +49,7 @@ export function AddGroupModal({
       }
     >
       <form id="add-group-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Group name" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <TextField kind="label" label="Group name" value={label} onChange={(e) => setLabel(e.target.value)} />
       </form>
     </Modal>
   )

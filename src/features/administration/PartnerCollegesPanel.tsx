@@ -296,12 +296,13 @@ export function PartnerCollegesPanel({
             </SelectField>
             {needsCommission(addPayer) && (
               <TextField
+                kind="percent"
                 label="% of tuition to consultancy"
                 id="pc-commission-percent"
                 type="number"
                 min={0}
                 max={100}
-                step="0.1"
+                step="0.01"
                 required
                 value={addCommissionPercent}
                 onChange={(e) => setAddCommissionPercent(e.target.value)}
@@ -437,12 +438,13 @@ function CommissionPercentModal({
       </p>
       <div className="mt-md">
         <TextField
+          kind="percent"
           label="% of tuition to consultancy"
           id="pc-edit-commission-percent"
           type="number"
           min={0}
           max={100}
-          step="0.1"
+          step="0.01"
           required
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -488,7 +490,7 @@ function ManageCoursesModal({
         automatically.
       </p>
       <div className="mt-md">
-        <TextField label="Search courses" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <TextField kind="search" label="Search courses" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       <div className="mt-md flex max-h-80 flex-col gap-xs overflow-y-auto">
         {courses.entries.map(({ row: c }) => (

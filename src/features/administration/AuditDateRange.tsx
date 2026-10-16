@@ -1,3 +1,5 @@
+import { DATE_MIN, DATE_MAX } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 /**
  * The date range of both audit logs (review F-114). The log is kept for good, so the server reads
  * a window: the dates chosen here (`filter[from]` / `filter[to]`), or the last 30 days when no
@@ -20,7 +22,8 @@ export function AuditDateRange({
       <input
         type="date"
         value={from}
-        max={to || undefined}
+        min={DATE_MIN}
+        max={to || DATE_MAX}
         onChange={(e) => onFromChange(e.target.value)}
         aria-label="From"
         className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
@@ -28,11 +31,13 @@ export function AuditDateRange({
       <input
         type="date"
         value={to}
-        min={from || undefined}
+        min={from || DATE_MIN}
+        max={DATE_MAX}
         onChange={(e) => onToChange(e.target.value)}
         aria-label="To"
         className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
       />
+      <DateRangeProblem from={from} to={to} />
     </>
   )
 }

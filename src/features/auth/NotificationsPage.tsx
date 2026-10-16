@@ -82,6 +82,7 @@ export function NotificationsPage() {
         <div className="flex flex-wrap items-center gap-sm">
           <div className="w-full max-w-[24rem]">
             <TextField
+              kind="search"
               label="Search notifications…"
               value={searchInput}
               onChange={(e) => changeSearch(e.target.value)}

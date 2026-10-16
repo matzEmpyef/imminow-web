@@ -46,6 +46,7 @@ import { formatDate, formatDateTime } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 import { LEAD_SOURCE_LABELS } from './leadSources'
+import { REASON_MAX, isTextOk } from '@/lib/validation'
 
 type Course = components['schemas']['Course']
 type Lead = components['schemas']['Lead']
@@ -304,8 +305,8 @@ export function NotesCard({ leadId }: { leadId: string }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!draft.trim()) return
-    addNote.mutate(draft, { onSuccess: () => setDraft('') })
+    if (!isTextOk('reason', draft)) return
+    addNote.mutate(draft.trim(), { onSuccess: () => setDraft('') })
   }
 
   const items = chronologicalPages(notes.data?.pages)
@@ -316,11 +317,13 @@ export function NotesCard({ leadId }: { leadId: string }) {
       <form onSubmit={handleSubmit} className="flex gap-sm">
         <input
           value={draft}
+          maxLength={REASON_MAX}
           onChange={(e) => setDraft(e.target.value)}
+          aria-label="Note for the team"
           placeholder="Add a note for the team…"
           className="h-10 flex-1 rounded-md border border-border bg-surface px-3 text-body"
         />
-        <Button type="submit" loading={addNote.isPending}>
+        <Button type="submit" loading={addNote.isPending} disabled={!isTextOk('reason', draft)}>
           Add
         </Button>
       </form>

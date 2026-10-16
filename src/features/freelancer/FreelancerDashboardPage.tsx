@@ -22,6 +22,8 @@ import {
   type FreelancerOwnReferralsFilters,
   type FreelancerReferral,
 } from '@/queries/freelancerReferrals'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 const STAGE_ORDER = ['waiting', 'with_consultancy', 'plan_complete', 'succeeded', 'moved', 'closed'] as const
 type Stage = (typeof STAGE_ORDER)[number]
@@ -320,7 +322,7 @@ export function FreelancerDashboardPage() {
         : referredPreset === 'custom' && from
           ? from
           : undefined,
-    to: referredPreset === 'custom' && to ? to : undefined,
+    to: referredPreset === 'custom' && to && !dateRangeError(from, to) ? to : undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
   }
 
@@ -502,6 +504,8 @@ export function FreelancerDashboardPage() {
                   <>
                     <input
                       type="date"
+                      min={DATE_MIN}
+                      max={to || DATE_MAX}
                       aria-label="Referred from"
                       value={from}
                       onChange={(e) => {
@@ -512,6 +516,8 @@ export function FreelancerDashboardPage() {
                     />
                     <input
                       type="date"
+                      min={from || DATE_MIN}
+                      max={DATE_MAX}
                       aria-label="Referred to"
                       value={to}
                       onChange={(e) => {
@@ -520,6 +526,7 @@ export function FreelancerDashboardPage() {
                       }}
                       className="h-10 rounded-md border border-border bg-background px-3 text-body-sm text-text-primary outline-none focus:border-primary"
                     />
+                    <DateRangeProblem from={from} to={to} />
                   </>
                 )}
               </>

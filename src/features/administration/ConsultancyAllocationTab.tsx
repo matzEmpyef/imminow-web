@@ -206,6 +206,9 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
 
             <div className="flex flex-col gap-xs">
               <TextField
+                kind="count"
+                countMin={1}
+                countMax={500}
                 label="Capacity per consultant"
                 type="number"
                 min={1}

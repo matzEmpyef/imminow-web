@@ -114,7 +114,9 @@ describe('RecordPlatformPaymentModal — duplicate protection', () => {
 describe('RecordPlatformPaymentModal — the transaction id', () => {
   it('stops at 200 characters', () => {
     renderModal()
-    expect(screen.getByLabelText('Transaction ID (optional)')).toHaveAttribute('maxlength', '200')
+    const id = screen.getByLabelText('Transaction ID (optional)') as HTMLInputElement
+    fireEvent.change(id, { target: { value: 't'.repeat(260) } })
+    expect(id.value).toHaveLength(200)
   })
 
   it('shows the server’s sentence beside the field when the id is already recorded, and stays open', async () => {

@@ -6,6 +6,7 @@ import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useAssignActivityTask } from '@/queries/activity'
 import { activeEmployeeSource, employeeName, personSource, type Employee, type PersonRow } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
+import { isTextOk } from '@/lib/validation'
 
 // User-requested (2026-08-15) — "Assign Task needs to be a popup... Also the client selection...
 // It could be a lead too... also we need to search the client/lead name in Related client
@@ -33,7 +34,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!assignedTo || !note || !dueDate) return
+    if (!assignedTo || !isTextOk('reason', note) || !dueDate) return
     const assigneeName = assignee ? employeeName(assignee) : undefined
     assignTask.mutate(
       {
@@ -67,7 +68,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
             type="submit"
             form="assign-task-form"
             loading={assignTask.isPending}
-            disabled={!assignedTo || !note || !dueDate}
+            disabled={!assignedTo || !isTextOk('reason', note) || !dueDate}
           >
             Assign
           </Button>
@@ -101,7 +102,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
           placeholder="Search by name…"
           emptyText="No one matches that name."
         />
-        <TextField label="Note" required value={note} onChange={(e) => setNote(e.target.value)} />
+        <TextField kind="note" label="Note" required value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="grid grid-cols-2 gap-md">
           <TextField
             label="Due date"
