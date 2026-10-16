@@ -39,7 +39,10 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   // pre-selected, so a PR case created by a consultant who never looked at this group was
   // commissioned at the student rate and opened an Applications tab it has no use for. The
   // person chooses; the form does not submit until they have.
-  const [caseType, setCaseType] = useState<'student' | 'pr' | ''>('')
+  // A college has only students (owner, decision 152): it is shown no choice and always sends
+  // `student`. The server refuses `pr` from one.
+  const [chosenType, setCaseType] = useState<'student' | 'pr' | ''>('')
+  const caseType = words.isInstitute ? 'student' : chosenType
   const [employeeId, setEmployeeId] = useState('')
   // Required tick (owner ruling): the consultant confirms the person is 16 or older. No date of
   // birth is asked here; the applicant gives their own when they first sign in to the app.
@@ -147,32 +150,34 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
         {/* fieldset/legend is the correct grouping for a radio set — a bare <label> can't
             associate with two inputs at once. The border/margin/padding resets keep the visual
             output identical to the plain divs this replaced. */}
-        <fieldset className="flex flex-col gap-xs border-0 p-0">
-          <legend className="mb-xs p-0 text-body-sm font-medium text-text-primary">Applicant Type</legend>
-          <p className="text-caption text-text-secondary">
-            Pick one — it sets the commission rate and what the case shows. Nothing is assumed.
-          </p>
-          <div className="flex gap-md">
-            <label className="flex items-center gap-xs text-body-sm">
-              <input
-                type="radio"
-                name="applicant-type"
-                checked={caseType === 'student'}
-                onChange={() => setCaseType('student')}
-              />
-              Student
-            </label>
-            <label className="flex items-center gap-xs text-body-sm">
-              <input
-                type="radio"
-                name="applicant-type"
-                checked={caseType === 'pr'}
-                onChange={() => setCaseType('pr')}
-              />
-              PR
-            </label>
-          </div>
-        </fieldset>
+        {!words.isInstitute && (
+          <fieldset className="flex flex-col gap-xs border-0 p-0">
+            <legend className="mb-xs p-0 text-body-sm font-medium text-text-primary">Applicant Type</legend>
+            <p className="text-caption text-text-secondary">
+              Pick one — it sets the commission rate and what the case shows. Nothing is assumed.
+            </p>
+            <div className="flex gap-md">
+              <label className="flex items-center gap-xs text-body-sm">
+                <input
+                  type="radio"
+                  name="applicant-type"
+                  checked={caseType === 'student'}
+                  onChange={() => setCaseType('student')}
+                />
+                Student
+              </label>
+              <label className="flex items-center gap-xs text-body-sm">
+                <input
+                  type="radio"
+                  name="applicant-type"
+                  checked={caseType === 'pr'}
+                  onChange={() => setCaseType('pr')}
+                />
+                PR
+              </label>
+            </div>
+          </fieldset>
+        )}
 
         {/* Searched on the server (review F-036, lane x): every colleague who works here now can be
             chosen, however large the roster. */}

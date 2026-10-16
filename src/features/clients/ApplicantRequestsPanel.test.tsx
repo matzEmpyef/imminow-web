@@ -141,6 +141,24 @@ describe('ApplicantRequestsPanel — waiting rows', () => {
     ])
   })
 
+  // Decision 152: a college has only students, so its list has no type column.
+  it('leaves out the applicant type column for a college', async () => {
+    vi.mocked(useMe).mockReturnValue(meAnswered(staffMe({ employee_id: 'e7', consultancy_kind: 'institute' })))
+    pages.pending[''] = { items: [request()] }
+    renderPanel()
+
+    const row = (await screen.findByText('Asha Rao')).closest('tr')!
+    expect(within(row).queryByText('Student')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      'Name',
+      'Contact',
+      'Assigned to',
+      'Sent',
+      'Expires',
+      '',
+    ])
+  })
+
   // Lane x: the server decides who may take a request back, and says so on the row.
   it('offers "Cancel request" exactly on the rows the server marks can_cancel', async () => {
     pages.pending[''] = {

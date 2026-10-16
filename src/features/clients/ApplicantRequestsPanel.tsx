@@ -7,6 +7,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { CancelProposalModal } from '@/features/sales/CancelProposalModal'
 import { useApplicantRequests, type ApplicantRequest, type ApplicantRequestView } from '@/queries/applicantRequests'
 import { requestStatusLabel } from '@/lib/applicantRequestWords'
+import { useAccountWords } from '@/lib/accountWords'
 import { useMeStaff } from '@/lib/me'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
@@ -65,6 +66,8 @@ function CancelRequestTrigger({ request, onCancelled }: { request: ApplicantRequ
 export function ApplicantRequestsPanel() {
   const [view, setView] = useState<ApplicantRequestView>('pending')
   const myEmployeeId = useMeStaff()?.employee_id
+  // A college has only students (decision 152): its requests need no "Applicant type" column.
+  const { isInstitute } = useAccountWords()
   const pendingPaging = useCursorPagination()
   const endedPaging = useCursorPagination()
   const paging = view === 'pending' ? pendingPaging : endedPaging
@@ -79,7 +82,7 @@ export function ApplicantRequestsPanel() {
   if (!hasAny) return null
 
   const waiting = view === 'pending'
-  const columns: TableColumn<ApplicantRequest>[] = [
+  const allColumns: TableColumn<ApplicantRequest>[] = [
     {
       key: 'name',
       header: 'Name',
@@ -164,6 +167,7 @@ export function ApplicantRequestsPanel() {
         ]
       : []),
   ]
+  const columns = isInstitute ? allColumns.filter((column) => column.key !== 'case_type') : allColumns
 
   return (
     <section aria-labelledby="applicant-requests-heading" className="overflow-hidden rounded-lg bg-surface p-xl shadow-card">

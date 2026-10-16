@@ -22,7 +22,11 @@ vi.mock('@/components/ServerSearchSelect', () => ({
     <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
   ),
 }))
-vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: false, person: 'consultant' }) }))
+let institute = false
+vi.mock('@/lib/accountWords', () => ({
+  useAccountWords: () =>
+    institute ? { isInstitute: true, person: 'team member' } : { isInstitute: false, person: 'consultant' },
+}))
 
 import { api } from '@/api/client'
 import { showToast } from '@/lib/toast'
@@ -101,6 +105,7 @@ async function refusedWith(answer: Answer) {
 }
 
 beforeEach(() => {
+  institute = false
   answers = []
   navigate.mockClear()
   mockedPost.mockReset()
@@ -131,6 +136,34 @@ describe('CreateApplicantModal — a new person (201)', () => {
     expect(sentKey(clientCalls()[0])).toMatch(/^[0-9a-f-]{36}$/)
     const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
     expect(keys).toContainEqual(['clients'])
+  })
+})
+
+// Owner's ruling, decision 152: a college has only students, never PR applicants.
+describe('CreateApplicantModal — a college', () => {
+  it('is offered no applicant type, does not wait for one, and sends student', async () => {
+    institute = true
+    answers = [{ status: 201, body: { id: 'c1' } }]
+    renderModal()
+    expect(screen.queryByText('Applicant Type')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('PR')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Student')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Asha' } })
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Rao' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'asha@example.com' } })
+    fireEvent.change(screen.getByLabelText('Assigned team member'), { target: { value: 'e1' } })
+    fireEvent.click(screen.getByLabelText('I confirm this applicant is 16 or older.'))
+    expect(screen.queryByText(/applicant type/)).not.toBeInTheDocument()
+    submit()
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/clients/c1'))
+    expect((clientCalls()[0][1] as { body: Record<string, unknown> }).body).toMatchObject({ case_type: 'student' })
+  })
+
+  it('leaves a consultancy both choices, and nothing assumed', () => {
+    renderModal()
+    expect(screen.getByLabelText('Student')).not.toBeChecked()
+    expect(screen.getByLabelText('PR')).not.toBeChecked()
   })
 })
 
