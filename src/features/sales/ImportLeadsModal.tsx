@@ -4,10 +4,20 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useCommitLeadImport, useCreateLead, useValidateLeadImport } from '@/queries/leads'
-import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
+import {
+  STAFF_PHONE_SENTENCE,
+  cleanName,
+  emailError as checkEmail,
+  isTextOk,
+  normaliseEmail,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
 import { repeatWarningOf } from '@/lib/servedCaseFields'
 import { showToast } from '@/lib/toast'
 import { ApiError, fieldMessages } from '@/api/errors'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 // Contract gate 7, owner Q7 (2026-09-25): duplicates — repeated within the file, or matching an
 // existing active imported lead — are skipped rather than failing the whole import, and listed
@@ -248,11 +258,11 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
   const refusedBesideAField = Object.keys(refused).length > 0 || refusedForNoContact
 
   const nameError = serverError('name', name)
-  const phoneError = (phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined) ?? serverError('phone', phone)
-  const emailError =
-    (email && !isValidEmail(email) ? EMAIL_ERROR : undefined) ?? serverError('email', email) ?? noContactError
+  const region = usePhoneRegion()
+  const phoneError = checkPhone(phone, region) ?? serverError('phone', phone)
+  const emailError = checkEmail(email) ?? serverError('email', email) ?? noContactError
   const shownBesideAField = Boolean(nameError || phoneError || emailError)
-  const canSubmit = Boolean(name) && !phoneError && !emailError && !nameError
+  const canSubmit = isTextOk('name', name) && !phoneError && !emailError && !nameError && isTextOk('note', notes)
 
   // The "added" line belongs to the lead just added: it goes as soon as the next one is begun.
   const edits = (set: (value: string) => void) => (e: { target: { value: string } }) => {
@@ -266,9 +276,17 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
     setStored(null)
     setWarning(null)
     if (!canSubmit) return
+    const sentPhone = phone.trim() ? phoneToSend(phone, region) : ''
+    const sentEmail = normaliseEmail(email)
     setSent({ name, phone, email })
     createLead.mutate(
-      { name, phone: phone || null, email: email || null, source, notes: notes || null },
+      {
+        name: cleanName(name),
+        phone: sentPhone || null,
+        email: sentEmail || null,
+        source,
+        notes: notes.trim() || null,
+      },
       {
         onSuccess: (lead) => {
           showToast('Lead added to the pool')
@@ -313,8 +331,16 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
             )}
           </div>
         )}
-        <TextField label="Name" value={name} onChange={edits(setName)} required error={nameError} />
-        <TextField label="Phone" value={phone} onChange={edits(setPhone)} error={phoneError} hint={STAFF_PHONE_SENTENCE} />
+        <TextField kind="name" label="Name" value={name} onChange={edits(setName)} required error={nameError} />
+        <TextField
+          label="Phone"
+          kind="phone"
+          phoneRegion={region}
+          value={phone}
+          onChange={edits(setPhone)}
+          error={phoneError}
+          hint={STAFF_PHONE_SENTENCE}
+        />
         <TextField
           label="Email"
           type="email"
@@ -338,7 +364,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
           <label className="text-body-sm font-medium text-text-primary" htmlFor="manual-notes">
             Notes
           </label>
-          <textarea
+          <LimitedTextArea kind="note"
             id="manual-notes"
             value={notes}
             onChange={edits(setNotes)}

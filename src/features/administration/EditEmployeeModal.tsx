@@ -5,7 +5,9 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useUpdateEmployee } from '@/queries/staff'
-import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
+import { cleanName, isTextOk, phoneError as checkPhone, phoneToSend } from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -83,17 +85,20 @@ function EditEmployeeModalBody({
       ? employee.user!.designation
       : null
 
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
-  const canSave = Boolean(firstName && lastName) && !phoneError
+  const region = usePhoneRegion()
+  // A number saved before the rule was one is not flagged until someone edits it.
+  const phoneError = phone !== (employee.user!.phone ?? '') ? checkPhone(phone, region) : undefined
+  const server = useServerFieldErrors(updateEmployee.error, { first_name: firstName, last_name: lastName, phone })
+  const canSave = isTextOk('name', firstName) && isTextOk('name', lastName) && !phoneError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSave) return
     updateEmployee.mutate(
       {
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone || null,
+        first_name: cleanName(firstName),
+        last_name: cleanName(lastName),
+        phone: phone.trim() ? (phone === (employee.user!.phone ?? '') ? phone.trim() : phoneToSend(phone, region)) : null,
         designation: designation || null,
       },
       {
@@ -112,7 +117,7 @@ function EditEmployeeModalBody({
       widthRem={28}
       footer={
         <>
-          {updateEmployee.isError && (
+          {updateEmployee.isError && !server.allBesideFields && (
             <p className="mr-auto self-center text-body-sm text-error">{updateEmployee.error.message}</p>
           )}
           <Button type="submit" form="edit-employee-form" loading={updateEmployee.isPending} disabled={!canSave}>
@@ -123,15 +128,29 @@ function EditEmployeeModalBody({
     >
       <form id="edit-employee-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="grid grid-cols-2 gap-md">
-          <TextField label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          <TextField label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <TextField
+            kind="name"
+            label="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            error={server.messageFor('first_name')}
+          />
+          <TextField
+            kind="name"
+            label="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            error={server.messageFor('last_name')}
+          />
         </div>
         <TextField
           label="Phone"
           type="tel"
+          autoCheck={false}
+          phoneRegion={region}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          error={phoneError}
+          error={phoneError ?? server.messageFor('phone')}
         />
         <SelectField
           label="Designation"

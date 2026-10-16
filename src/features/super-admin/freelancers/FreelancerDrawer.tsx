@@ -19,6 +19,7 @@ import { showToast } from '@/lib/toast'
 import { ChangeReferralCodeModal } from './ChangeReferralCodeModal'
 import { DeactivateFreelancerModal } from './DeactivateFreelancerModal'
 import { inr } from '@/lib/money'
+import { percentError } from '@/lib/validation'
 
 const STATUS_BADGE = {
   invited: { color: 'warning', label: 'Invited' },
@@ -83,6 +84,7 @@ function ShareEditor({ freelancer }: { freelancer: Freelancer }) {
     <div className="flex flex-col gap-sm rounded-md border border-border px-md py-sm">
       <div className="flex items-end gap-sm">
         <TextField
+          kind="percent"
           label="Share %"
           type="number"
           min={0}
@@ -91,7 +93,7 @@ function ShareEditor({ freelancer }: { freelancer: Freelancer }) {
           onChange={(e) => setValue(Number(e.target.value))}
           className="flex-1"
         />
-        <Button size="sm" loading={saving} onClick={handleSave}>
+        <Button size="sm" loading={saving} disabled={Boolean(percentError(value))} onClick={handleSave}>
           Save
         </Button>
         <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>

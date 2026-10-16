@@ -13,13 +13,23 @@ import { useAddGalleryImage, useDeleteGalleryImage, useMyConsultancy, useUpdateC
 import { mediaUrl } from '@/lib/mediaUrl'
 import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
-import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import {
+  cleanText,
+  emailError as checkEmail,
+  isTextOk,
+  normaliseEmail,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { phoneRegionOf } from '@/lib/phoneRegion'
 import { showToast } from '@/lib/toast'
 import { useAccountWords } from '@/lib/accountWords'
 import { ApiError } from '@/api/errors'
 import { KycCard } from './KycCard'
 import { VisitingHoursEditor } from './VisitingHoursEditor'
 import { visitingHoursStateFrom, visitingScheduleFrom, type VisitingHoursState } from './visitingHoursState'
+import { uploadAccept, uploadProblem, uploadSentence } from '@/lib/uploadRules'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 // User-requested — Description is the short factual blurb shown in the student-facing browse
 // list and near the top of Consultancy Detail, so it needs to stay scannable.
@@ -85,8 +95,15 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
     updateProfile.error instanceof ApiError && updateProfile.error.code === 'validation_failed'
       ? updateProfile.error.message
       : undefined
-  const publicEmailError = publicEmail && !isValidEmail(publicEmail) ? EMAIL_ERROR : undefined
-  const publicPhoneError = publicPhone && !isValidPhone(publicPhone) ? PHONE_ERROR : undefined
+  // The consultancy's own country says how a number typed without a country code is read. An
+  // address or number saved before the rule was one is not flagged until someone edits it.
+  const region = phoneRegionOf(country)
+  const publicEmailError = publicEmail !== (consultancy.public_email ?? '') ? checkEmail(publicEmail) : undefined
+  const publicPhoneError = publicPhone !== (consultancy.public_phone ?? '') ? checkPhone(publicPhone, region) : undefined
+  const textOk =
+    isTextOk('label', city, { optional: true }) &&
+    isTextOk('address', address, { optional: true }) &&
+    isTextOk('label', visitingHours, { optional: true })
   const descriptionWords = wordCount(description)
   const descriptionError =
     descriptionWords > DESCRIPTION_WORD_LIMIT
@@ -95,19 +112,23 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (publicEmailError || publicPhoneError || descriptionError) return
+    if (publicEmailError || publicPhoneError || descriptionError || !textOk) return
     updateProfile.mutate(
       {
         logo_url: logoUrl || null,
         description,
         about_us: aboutUs,
         countries_served: countries,
-        city,
+        city: cleanText(city),
         country,
-        public_email: publicEmail || null,
-        public_phone: publicPhone || null,
-        address: address || null,
-        visiting_hours: visitingHours || null,
+        public_email: normaliseEmail(publicEmail) || null,
+        public_phone: publicPhone.trim()
+          ? publicPhone === (consultancy.public_phone ?? '')
+            ? publicPhone.trim()
+            : phoneToSend(publicPhone, region)
+          : null,
+        address: cleanText(address) || null,
+        visiting_hours: cleanText(visitingHours) || null,
         visiting_schedule: visitingScheduleFrom(visiting),
       },
       {
@@ -141,7 +162,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
               hint="Square works best — shown at 48×48 in the student app. Ideal size 200×200px."
             />
           </div>
-          <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+          <TextField kind="label" label="City" value={city} onChange={(e) => setCity(e.target.value)} />
           {/* Where the consultancy is based, NOT where it sends students — that's Countries
               Served below. Added 2026-08-23: invoices default to this country's currency, which
               until now was hardcoded to INR for everyone. */}
@@ -150,6 +171,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
               the app. Visiting hours is free text in your own words; it does NOT change the visit
               booking window, which is a platform rule. */}
           <TextField
+            kind="address"
             label="Address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
@@ -157,6 +179,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
           />
           <div className="flex flex-col gap-xs">
             <TextField
+              kind="label"
               label="Visiting hours"
               value={visitingHours}
               onChange={(e) => setVisitingHours(e.target.value)}
@@ -173,7 +196,8 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
           />
           <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-description">Description</FieldLabel>
-            <textarea
+            <LimitedTextArea
+              kind="longText"
               id="consultancy-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -186,7 +210,8 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
           </div>
           <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-about-us">About Us</FieldLabel>
-            <textarea
+            <LimitedTextArea
+              kind="longText"
               id="consultancy-about-us"
               value={aboutUs}
               onChange={(e) => setAboutUs(e.target.value)}
@@ -210,11 +235,15 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
             label="Public email"
             type="email"
             value={publicEmail}
+            autoCheck={false}
             onChange={(e) => setPublicEmail(e.target.value)}
             error={publicEmailError}
           />
           <TextField
             label="Public phone"
+            kind="phone"
+            autoCheck={false}
+            phoneRegion={region}
             value={publicPhone}
             onChange={(e) => setPublicPhone(e.target.value)}
             error={publicPhoneError}
@@ -245,7 +274,6 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
 }
 
 const GALLERY_MAX_IMAGES = 5
-const GALLERY_MAX_BYTES = 2 * 1024 * 1024 // ~2MB, mirrors the server's own cap
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -333,8 +361,8 @@ function GalleryImageRow({ image }: { image: GalleryImage }) {
         className="h-24 w-32 shrink-0 rounded-md border border-border bg-background object-cover"
       />
       <div className="flex flex-1 flex-col gap-xs">
-        <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        <TextField kind="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
         {updateImage.isError && <p className="text-caption text-error">{updateImage.error.message}</p>}
         <div className="mt-xs flex items-center justify-end gap-sm">
           <button
@@ -401,8 +429,9 @@ function AddGalleryImageModal({ onClose }: { onClose: () => void }) {
     e.target.value = ''
     if (!picked) return
     setReadError(null)
-    if (picked.size > GALLERY_MAX_BYTES) {
-      setReadError('Image is too large — 2MB maximum.')
+    const wrong = uploadProblem(picked, 'gallery')
+    if (wrong) {
+      setReadError(wrong)
       setFileName(null)
       setDataUrl(null)
       return
@@ -453,11 +482,11 @@ function AddGalleryImageModal({ onClose }: { onClose: () => void }) {
             {fileName ? 'Replace' : 'Choose file'}
           </Button>
         </div>
-        <p className="text-caption text-text-secondary">JPEG, PNG, GIF or WebP · 2MB maximum.</p>
+        <p className="text-caption text-text-secondary">{uploadSentence('gallery')}</p>
         {readError && <p className="text-caption text-error">{readError}</p>}
-        <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-        <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        <input ref={inputRef} type="file" accept={uploadAccept('gallery')} onChange={handleFileChange} className="hidden" />
+        <TextField kind="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
         {addImage.isError && <p className="text-body-sm text-error">{addImage.error.message}</p>}
       </div>
     </Modal>

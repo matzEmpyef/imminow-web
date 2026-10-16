@@ -3,6 +3,7 @@ import { ApiError } from '@/api/errors'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { formatDateTime } from '@/lib/time'
+import { isTextOk } from '@/lib/validation'
 import { useExportUserData, type UserSearchResult } from '@/queries/supportTools'
 
 /**
@@ -49,7 +50,7 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
         Builds a full copy of everything immiNow holds on this user. Their own verified email is told when it is ready
         and they download it from inside the product within 7 days. You do not receive it. Safe to run — it only reads.
       </p>
-      <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       {exportData.isError && (
         <div role="alert" className="flex flex-col gap-0.5">
           <p className="text-body-sm text-error">{exportData.error.message}</p>
@@ -64,7 +65,7 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
         </Button>
         <Button
           size="sm"
-          disabled={reason.trim().length < 3}
+          disabled={!isTextOk('reason', reason)}
           loading={exportData.isPending}
           onClick={() =>
             exportData.mutate({ id: result.id, reason: reason.trim() }, { onSuccess: () => setSucceeded(true) })

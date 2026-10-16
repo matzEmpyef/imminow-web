@@ -4,7 +4,17 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Combobox } from '@/components/Combobox'
 import { useCreatePhonebookContact, useUpdatePhonebookContact } from '@/queries/phonebook'
-import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
+import {
+  STAFF_PHONE_SENTENCE,
+  cleanText,
+  emailError as checkEmail,
+  isTextOk,
+  normaliseEmail,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 import { showToast } from '@/lib/toast'
 import { StillNeeded } from '@/components/StillNeeded'
 
@@ -31,9 +41,13 @@ export function AddPhonebookContactModal({
   const [phone, setPhone] = useState(contact?.phone ?? '')
   const [email, setEmail] = useState(contact?.email ?? '')
 
-  const phoneError = phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined
-  const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
-  const canSubmit = Boolean(name.trim() && category.trim() && phone) && !phoneError && !emailError
+  const region = usePhoneRegion()
+  // A number or an address saved before the rule was one is not flagged until someone edits it.
+  const phoneError = phone !== (contact?.phone ?? '') ? checkPhone(phone, region) : undefined
+  const emailError = email !== (contact?.email ?? '') ? checkEmail(email) : undefined
+  const server = useServerFieldErrors(save.error, { name, category, phone, email })
+  const canSubmit =
+    Boolean(isTextOk('label', name) && isTextOk('label', category) && phone.trim()) && !phoneError && !emailError
   const stillNeeded = [...(name.trim() ? [] : ['a name']), ...(category.trim() ? [] : ['a category']), ...(phone ? [] : ['a phone number'])]
 
   function handleSubmit(e: FormEvent) {
@@ -41,7 +55,12 @@ export function AddPhonebookContactModal({
     if (!canSubmit) return
     save.mutate(
       // Editing sends the email as it stands, an empty one included, so a removed email is saved.
-      { name: name.trim(), category: category.trim(), phone, email: contact ? email : email || undefined },
+      {
+        name: cleanText(name),
+        category: cleanText(category),
+        phone: phone === (contact?.phone ?? '') ? phone.trim() : phoneToSend(phone, region),
+        email: contact ? normaliseEmail(email) : normaliseEmail(email) || undefined,
+      },
       {
         onSuccess: () => {
           showToast(contact ? `${name} saved` : `${name} added to phonebook`)
@@ -57,7 +76,9 @@ export function AddPhonebookContactModal({
       title={contact ? 'Edit Contact' : 'Add Contact'}
       footer={
         <>
-          {save.isError && <p className="mr-auto self-center text-body-sm text-error">{save.error.message}</p>}
+          {save.isError && !server.allBesideFields && (
+            <p className="mr-auto self-center text-body-sm text-error">{save.error.message}</p>
+          )}
           <StillNeeded items={stillNeeded} />
           <Button type="submit" form="add-phonebook-contact-form" loading={save.isPending} disabled={!canSubmit}>
             {contact ? 'Save' : 'Add Contact'}
@@ -66,15 +87,33 @@ export function AddPhonebookContactModal({
       }
     >
       <form id="add-phonebook-contact-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <TextField
+          kind="label"
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={server.messageFor('name')}
+          required
+        />
         <Combobox label="Category" value={category} onChange={setCategory} options={categories} required commitWhileTyping />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} hint={STAFF_PHONE_SENTENCE} required />
+        <TextField
+          label="Phone"
+          kind="phone"
+          autoCheck={false}
+          phoneRegion={region}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={phoneError ?? server.messageFor('phone')}
+          hint={STAFF_PHONE_SENTENCE}
+          required
+        />
         <TextField
           label="Email"
           type="email"
           value={email}
+          autoCheck={false}
           onChange={(e) => setEmail(e.target.value)}
-          error={emailError}
+          error={emailError ?? server.messageFor('email')}
         />
       </form>
     </Modal>

@@ -13,7 +13,8 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
-import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidE164Phone, isValidEmail } from '@/lib/validation'
+import { STAFF_PHONE_SENTENCE, emailError as checkEmail, isTextOk, normaliseEmail, phoneError as checkPhone, phoneToSend } from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
 
 type TransferCode = components['schemas']['TransferCode']
 
@@ -44,12 +45,14 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
   const [studentPhone, setStudentPhone] = useState('')
   const [reason, setReason] = useState('')
   const [copied, setCopied] = useState(false)
-  const emailError = studentEmail && !isValidEmail(studentEmail) ? EMAIL_ERROR : undefined
-  const phoneError = studentPhone && !isValidE164Phone(studentPhone) ? STAFF_PHONE_SENTENCE : undefined
+  const region = usePhoneRegion()
+  const emailError = checkEmail(studentEmail)
+  const phoneError = checkPhone(studentPhone, region)
+  const reasonOk = isTextOk('reason', reason)
   const canIssue =
     identifierKind === 'email'
-      ? Boolean(studentEmail.trim()) && !emailError && Boolean(reason.trim())
-      : Boolean(studentPhone.trim()) && !phoneError && Boolean(reason.trim())
+      ? Boolean(studentEmail.trim()) && !emailError && reasonOk
+      : Boolean(studentPhone.trim()) && !phoneError && reasonOk
   const issued = issueCode.isSuccess ? issueCode.data : null
 
   function handleIssue(e?: FormEvent) {
@@ -57,8 +60,8 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
     if (!canIssue) return
     issueCode.mutate(
       identifierKind === 'email'
-        ? { studentEmail: studentEmail.trim(), reason: reason.trim() }
-        : { studentPhone: studentPhone.trim(), reason: reason.trim() },
+        ? { studentEmail: normaliseEmail(studentEmail), reason: reason.trim() }
+        : { studentPhone: phoneToSend(studentPhone, region), reason: reason.trim() },
     )
   }
 
@@ -138,11 +141,12 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
               placeholder="+919876543210"
               value={studentPhone}
               onChange={(e) => setStudentPhone(e.target.value)}
+              phoneRegion={region}
               error={phoneError}
               hint={STAFF_PHONE_SENTENCE}
             />
           )}
-          <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+          <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
           <p className="-mt-sm pl-lg text-caption text-text-secondary">
             Describe the reason in general terms. Please leave out the student's name and contact details.
           </p>

@@ -3,6 +3,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useResendGuardianLink, type UserSearchResult } from '@/queries/supportTools'
+import { cleanName, emailError, isTextOk, normaliseEmail } from '@/lib/validation'
 
 /**
  * Sends the guardian approval link again, for a student under 18 whose guardian declined twice or
@@ -18,6 +19,9 @@ export function GuardianForm({ result, onCancel }: { result: UserSearchResult; o
   const [succeeded, setSucceeded] = useState(false)
 
   const consent = result.guardian_consent
+  const guardianEmailError = emailError(email)
+  const canSend =
+    isTextOk('reason', reason) && isTextOk('name', guardianName, { optional: true }) && !guardianEmailError
 
   if (succeeded) {
     return (
@@ -50,12 +54,14 @@ export function GuardianForm({ result, onCancel }: { result: UserSearchResult; o
       <p className="text-caption text-text-secondary">
         Emails the guardian a fresh approval link and resets their decline count.
       </p>
-      <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
-      <TextField label="Guardian name (optional)" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
+      <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <TextField kind="name" label="Guardian name (optional)" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
       <TextField
+        type="email"
         label="Guardian email (optional — leave blank to reuse the one on file)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        error={guardianEmailError}
       />
       {resend.isError && <p className="text-body-sm text-error">{resend.error.message}</p>}
       <div className="flex items-center justify-end gap-sm">
@@ -64,15 +70,15 @@ export function GuardianForm({ result, onCancel }: { result: UserSearchResult; o
         </Button>
         <Button
           size="sm"
-          disabled={!reason.trim()}
+          disabled={!canSend}
           loading={resend.isPending}
           onClick={() =>
             resend.mutate(
               {
                 id: result.id,
                 reason: reason.trim(),
-                guardian_name: guardianName.trim() || undefined,
-                email: email.trim() || undefined,
+                guardian_name: cleanName(guardianName) || undefined,
+                email: normaliseEmail(email) || undefined,
               },
               { onSuccess: () => setSucceeded(true) },
             )

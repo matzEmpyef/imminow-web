@@ -22,7 +22,7 @@ import {
 import { useIsSuperAdmin, useMyUserId, usePlatformPermission, usePlatformPermissions } from '@/lib/me'
 import type { components } from '@/api/schema'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
-import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
+import { EMAIL_ERROR, isValidEmail, checkText, isTextOk, nameFits, NAME_SENTENCE, FULL_NAME_MAX, cleanName, normaliseEmail } from '@/lib/validation'
 import { formatDate, formatDateTime, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 
@@ -242,7 +242,9 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
   const [nameTouched, setNameTouched] = useState(false)
   const [emailTouched, setEmailTouched] = useState(false)
 
-  const nameError = (attempted || nameTouched) && !name.trim() ? 'Name is required.' : undefined
+  // One box for the whole name, so it may run to 200 characters (two names of 100).
+  const nameError =
+    (attempted || nameTouched) && !nameFits(name) ? (name.trim() ? NAME_SENTENCE : 'Name is required.') : undefined
   const emailError = (attempted || emailTouched)
     ? !email.trim()
       ? 'Email is required.'
@@ -250,7 +252,7 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
         ? EMAIL_ERROR
         : undefined
     : undefined
-  const canSubmit = Boolean(name.trim() && email.trim() && isValidEmail(email))
+  const canSubmit = nameFits(name) && Boolean(email.trim() && isValidEmail(email))
 
   function toggle(key: PlatformPermissionKey) {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -273,10 +275,10 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
       return
     }
     createStaff.mutate(
-      { name: name.trim(), email, permissions },
+      { name: cleanName(name), email: normaliseEmail(email), permissions },
       {
         onSuccess: () => {
-          onInvited(email)
+          onInvited(normaliseEmail(email))
           onClose()
         },
       },
@@ -302,6 +304,9 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
       <form id="add-staff-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-lg">
         <div className="flex flex-col gap-md">
           <TextField
+            kind="name"
+            limit={FULL_NAME_MAX}
+            autoCheck={false}
             label="Name"
             required
             value={name}
@@ -363,8 +368,8 @@ function ReasonModal({
 }) {
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const reasonValid = reason.trim().length >= 3
-  const reasonError = attempted && !reasonValid ? 'Add a reason (at least 3 characters).' : undefined
+  const reasonValid = isTextOk('reason', reason)
+  const reasonError = attempted ? checkText('reason', reason) : undefined
 
   function handleConfirm() {
     if (!reasonValid) {
@@ -392,7 +397,7 @@ function ReasonModal({
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">{description}</p>
-        <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} error={reasonError} />
+        <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} error={reasonError} />
         {error && <p className="text-body-sm text-error">{error}</p>}
       </div>
     </Modal>
@@ -412,8 +417,8 @@ function PermissionEditor({ staff, isSelf }: { staff: PlatformStaff; isSelf: boo
   const isOn = (key: PlatformPermissionKey) => (key in edits ? edits[key] : has(staff, key))
   const changedKeys = Object.keys(edits).filter((k) => edits[k] !== has(staff, k as PlatformPermissionKey))
   const dirty = changedKeys.length > 0
-  const reasonValid = reason.trim().length >= 3
-  const reasonError = attempted && !reasonValid ? 'Add a reason (at least 3 characters).' : undefined
+  const reasonValid = isTextOk('reason', reason)
+  const reasonError = attempted ? checkText('reason', reason) : undefined
 
   function setEdit(key: PlatformPermissionKey, value: boolean) {
     setEdits((prev) => {
@@ -475,6 +480,7 @@ function PermissionEditor({ staff, isSelf }: { staff: PlatformStaff; isSelf: boo
                 {changedKeys.length} change{changedKeys.length === 1 ? '' : 's'}
               </p>
               <TextField
+                kind="reason"
                 label="Reason for the change"
                 required
                 value={reason}

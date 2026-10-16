@@ -4,21 +4,21 @@ import { AuthLayout } from './AuthLayout'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useForgotPassword } from '@/queries/auth'
+import { EMAIL_ERROR, isValidEmail, normaliseEmail } from '@/lib/validation'
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function ForgotPasswordPage() {
   const forgotPassword = useForgotPassword()
   const [email, setEmail] = useState('')
   const [touched, setTouched] = useState(false)
 
-  const emailError = touched && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
+  const emailError = touched && !isValidEmail(email) ? EMAIL_ERROR : undefined
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setTouched(true)
-    if (!EMAIL_PATTERN.test(email)) return
-    forgotPassword.mutate({ email })
+    if (!isValidEmail(email)) return
+    forgotPassword.mutate({ email: normaliseEmail(email) })
   }
 
   if (forgotPassword.isSuccess) {

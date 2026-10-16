@@ -3,10 +3,22 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useInviteFreelancer } from '@/queries/freelancerRates'
-
-// Same shape the server enforces (openapi 400 on a malformed code) — checked client-side too so a
-// typo is caught before the round trip, not just echoed back from the server.
-const CODE_PATTERN = /^[A-Z0-9-]{4,20}$/
+import {
+  PERCENT_SENTENCE,
+  REFERRAL_CODE_LENGTH,
+  checkText,
+  cleanName,
+  codeError as codeErrorOf,
+  emailError as emailErrorOf,
+  isTextOk,
+  normaliseCode,
+  normaliseEmail,
+  percentError,
+  phoneError as phoneErrorOf,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 
 /**
  * Invites a freelancer (2026-09-11) — the referral code is TYPED by the admin, not generated, so
@@ -29,17 +41,37 @@ export function InviteFreelancerModal({
   const [rate, setRate] = useState('')
   const [touched, setTouched] = useState(false)
 
-  const codeError = touched && code.length > 0 && !CODE_PATTERN.test(code) ? 'Use 4–20 letters, digits or dashes.' : undefined
+  const region = usePhoneRegion()
+  const server = useServerFieldErrors(inviteFreelancer.error, {
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone,
+    referral_code: code,
+    rate: rate,
+  })
+  const codeError = touched && code.length > 0 ? codeErrorOf(code, REFERRAL_CODE_LENGTH) : undefined
   // The rate is required (assumptions audit C7, approved 2026-09-19) — "set it later" meant a
   // case closed, immiNow collected ₹1,20,000, and the payouts page showed the freelancer ₹0 with
   // nothing anywhere saying a rate was missing. The server refuses an invite without one too.
   const parsedRate = Number(rate)
-  const rateValid = rate.trim() !== '' && Number.isFinite(parsedRate) && parsedRate > 0 && parsedRate <= 100
-  const rateError = touched && !rateValid ? 'Enter their share, between 0 and 100%.' : undefined
-  const canSubmit = Boolean(firstName.trim() && lastName.trim() && email.trim() && CODE_PATTERN.test(code)) && rateValid
-  const firstNameError = touched && !firstName.trim() ? 'First name is required.' : undefined
-  const lastNameError = touched && !lastName.trim() ? 'Last name is required.' : undefined
-  const emailError = touched && !email.trim() ? 'Email is required.' : undefined
+  // A share of 0% is allowed: it means no share (decision 154, ruling 6).
+  const rateValid = rate.trim() !== '' && Number.isFinite(parsedRate) && !percentError(rate)
+  const rateError = touched && !rateValid ? PERCENT_SENTENCE : undefined
+  const phoneError = phoneErrorOf(phone, region)
+  const emailInvalid = emailErrorOf(email)
+  const canSubmit =
+    isTextOk('name', firstName) &&
+    isTextOk('name', lastName) &&
+    Boolean(email.trim()) &&
+    !emailInvalid &&
+    !phoneError &&
+    code.length > 0 &&
+    !codeErrorOf(code, REFERRAL_CODE_LENGTH) &&
+    rateValid
+  const firstNameError = touched && !isTextOk('name', firstName) ? checkText('name', firstName) : undefined
+  const lastNameError = touched && !isTextOk('name', lastName) ? checkText('name', lastName) : undefined
+  const emailError = touched && !email.trim() ? 'Email is required.' : emailInvalid
   const requiredCodeError = touched && !code.trim() ? 'Referral code is required.' : codeError
 
   function handleSubmit(e: FormEvent) {
@@ -48,16 +80,16 @@ export function InviteFreelancerModal({
     if (!canSubmit) return
     inviteFreelancer.mutate(
       {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        referral_code: code,
-        phone: phone || undefined,
+        first_name: cleanName(firstName),
+        last_name: cleanName(lastName),
+        email: normaliseEmail(email),
+        referral_code: normaliseCode(code),
+        phone: phone.trim() ? phoneToSend(phone, region) : undefined,
         rate: parsedRate,
       },
       {
         onSuccess: () => {
-          onInvited(email)
+          onInvited(normaliseEmail(email))
           onClose()
         },
       },
@@ -71,7 +103,7 @@ export function InviteFreelancerModal({
       widthRem={28}
       footer={
         <>
-          {inviteFreelancer.isError && (
+          {inviteFreelancer.isError && !server.allBesideFields && (
             <p className="mr-auto self-center text-body-sm text-error">{inviteFreelancer.error.message}</p>
           )}
           <Button type="submit" form="invite-freelancer-form" loading={inviteFreelancer.isPending}>
@@ -83,19 +115,21 @@ export function InviteFreelancerModal({
       <form id="invite-freelancer-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="flex gap-sm">
           <TextField
+            kind="name"
             label="First name"
             required
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            error={firstNameError}
+            error={firstNameError ?? server.messageFor('first_name')}
             className="flex-1"
           />
           <TextField
+            kind="name"
             label="Last name"
             required
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            error={lastNameError}
+            error={lastNameError ?? server.messageFor('last_name')}
             className="flex-1"
           />
         </div>
@@ -105,17 +139,25 @@ export function InviteFreelancerModal({
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={emailError}
+          error={emailError ?? server.messageFor('email')}
         />
-        <TextField label="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <TextField
+          label="Phone"
+          type="tel"
+          phoneRegion={region}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={phoneError ?? server.messageFor('phone')}
+        />
         <div className="flex flex-col gap-xs">
           <TextField
+            kind="code"
             label="Referral code"
             required
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             onBlur={() => setTouched(true)}
-            error={requiredCodeError}
+            error={requiredCodeError ?? server.messageFor('referral_code')}
             className="font-mono"
           />
           <p className="pl-lg text-caption text-text-secondary">
@@ -124,6 +166,7 @@ export function InviteFreelancerModal({
         </div>
         <div className="flex flex-col gap-xs">
           <TextField
+            kind="percent"
             label="Their share of the commission immiNow collects"
             type="number"
             required
@@ -132,7 +175,7 @@ export function InviteFreelancerModal({
             value={rate}
             onChange={(e) => setRate(e.target.value)}
             onBlur={() => setTouched(true)}
-            error={rateError}
+            error={rateError ?? server.messageFor('rate')}
           />
           <p className="pl-lg text-caption text-text-secondary">
             A percentage of what immiNow collects on the students they bring. Needed now, not

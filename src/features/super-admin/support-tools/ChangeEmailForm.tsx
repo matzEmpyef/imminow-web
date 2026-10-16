@@ -5,7 +5,7 @@ import { TextField } from '@/components/TextField'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate } from '@/lib/time'
 import { useUpdateUserEmail, type UserSearchResult } from '@/queries/supportTools'
-import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
+import { emailError as checkEmail, isTextOk, normaliseEmail } from '@/lib/validation'
 
 const VERIFICATION_OPTIONS = [
   { value: 'called_registered_phone', label: 'Called their registered phone' },
@@ -54,10 +54,14 @@ export function ChangeEmailForm({
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState<UserSearchResult | null>(null)
 
-  const emailError = newEmail && !isValidEmail(newEmail) ? EMAIL_ERROR : undefined
+  const emailError = checkEmail(newEmail)
   const noteRequired = verificationMethod === 'other'
   const canContinue = Boolean(
-    newEmail && !emailError && verificationMethod && (!noteRequired || verificationNote.trim()) && reason.trim(),
+    newEmail.trim() &&
+      !emailError &&
+      verificationMethod &&
+      (!noteRequired || isTextOk('note', verificationNote)) &&
+      isTextOk('reason', reason),
   )
   const waitSeconds = retryAfterSeconds(updateEmail.error)
   const retry = waitSeconds ? aboutHowLong(waitSeconds) : null
@@ -87,7 +91,7 @@ export function ChangeEmailForm({
         <p className="text-body-sm font-semibold text-text-primary">{result.name}</p>
         <div className="flex flex-col gap-xs rounded-md bg-background p-sm text-body-sm text-text-primary">
           <p>
-            {newEmail} is recorded as waiting for {result.name} to confirm. {howToConfirm(result)}
+            {normaliseEmail(newEmail)} is recorded as waiting for {result.name} to confirm. {howToConfirm(result)}
           </p>
           <p>
             We email the new address how to confirm it and by when
@@ -112,7 +116,7 @@ export function ChangeEmailForm({
               updateEmail.mutate(
                 {
                   id: result.id,
-                  new_email: newEmail,
+                  new_email: normaliseEmail(newEmail),
                   reason: reason.trim(),
                   verification_method: verificationMethod as VerificationMethod,
                   verification_note: noteRequired ? verificationNote.trim() : undefined,
@@ -158,13 +162,14 @@ export function ChangeEmailForm({
       </SelectField>
       {noteRequired && (
         <TextField
+          kind="note"
           label="Note"
           required
           value={verificationNote}
           onChange={(e) => setVerificationNote(e.target.value)}
         />
       )}
-      <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       <div className="flex items-center justify-end gap-sm">
         <Button size="sm" variant="secondary" onClick={onCancel}>
           Cancel

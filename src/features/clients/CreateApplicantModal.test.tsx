@@ -173,7 +173,7 @@ describe('CreateApplicantModal — the form', () => {
     const sentence = 'Enter the phone number with the country code, for example +919876543210.'
     renderModal()
     expect(screen.getByText(sentence)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '12' } })
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: 'call me' } })
     expect(screen.getAllByText(sentence)).toHaveLength(1)
     expect(screen.getByLabelText('Phone')).toHaveAttribute('aria-invalid', 'true')
   })

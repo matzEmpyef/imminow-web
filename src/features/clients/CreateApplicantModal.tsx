@@ -11,7 +11,18 @@ import type { ApplicantRequest } from '@/queries/applicantRequests'
 import { createApplicantErrorMessage, dailyLimitLine } from '@/lib/applicantRequestWords'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { showToast } from '@/lib/toast'
-import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
+import {
+  STAFF_PHONE_SENTENCE,
+  cleanName,
+  cleanText,
+  emailError as checkEmail,
+  isTextOk,
+  normaliseEmail,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 import { useAccountWords } from '@/lib/accountWords'
 
 // Was its own page (`/clients/new`) — folded into Clients List as a popup (user-requested),
@@ -48,17 +59,31 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   // birth is asked here; the applicant gives their own when they first sign in to the app.
   const [ageConfirmed, setAgeConfirmed] = useState(false)
 
-  const phoneError = phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined
-  const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
+  const region = usePhoneRegion()
+  const phoneError = checkPhone(phone, region)
+  const emailError = checkEmail(email)
+  // What the server says about a refused field goes beside that field (decision 154, ruling 14).
+  const server = useServerFieldErrors(createApplicant.error, {
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone,
+    address,
+  })
+  const namesOk = isTextOk('name', firstName) && isTextOk('name', lastName)
+  const addressOk = isTextOk('address', address, { optional: true })
   // No date of birth here (Phase 8, D-129 C-2): the student gives their own the first time they
   // sign in to the app.
   const canSubmit =
-    Boolean(firstName && lastName && email && employeeId && caseType && ageConfirmed) && !phoneError && !emailError
+    Boolean(namesOk && email.trim() && employeeId && caseType && ageConfirmed) &&
+    addressOk &&
+    !phoneError &&
+    !emailError
   // T4-14: the button is off until these are filled in, so the footer names what is missing.
   const stillNeeded = [
-    ...(firstName ? [] : ['first name']),
-    ...(lastName ? [] : ['last name']),
-    ...(email ? [] : ['email']),
+    ...(isTextOk('name', firstName) ? [] : ['first name']),
+    ...(isTextOk('name', lastName) ? [] : ['last name']),
+    ...(email.trim() ? [] : ['email']),
     ...(caseType ? [] : ['applicant type']),
     ...(employeeId ? [] : [words.isInstitute ? 'assigned team member' : 'assigned consultant']),
     ...(ageConfirmed ? [] : ['confirmation that the applicant is 16 or older']),
@@ -70,11 +95,11 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
     e.preventDefault()
     if (!canSubmit) return
     const payload = {
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      phone: phone || null,
-      address: address || null,
+      first_name: cleanName(firstName),
+      last_name: cleanName(lastName),
+      email: normaliseEmail(email),
+      phone: phone.trim() ? phoneToSend(phone, region) : null,
+      address: cleanText(address) || null,
       case_type: caseType as 'student' | 'pr',
       assigned_employee_id: employeeId,
       age_confirmed: true as const,
@@ -120,7 +145,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
       widthRem={36}
       footer={
         <>
-          {createApplicant.isError && !isAlreadyApplied(createApplicant.error) && (
+          {createApplicant.isError && !isAlreadyApplied(createApplicant.error) && !server.allBesideFields && (
             <p className="mr-auto self-center text-body-sm text-error" role="alert">
               {createApplicantErrorMessage(createApplicant.error)}
             </p>
@@ -134,18 +159,44 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
     >
       <form id="create-applicant-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="grid grid-cols-2 gap-md">
-          <TextField label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          <TextField label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <TextField
+            kind="name"
+            label="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            error={server.messageFor('first_name')}
+          />
+          <TextField
+            kind="name"
+            label="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            error={server.messageFor('last_name')}
+          />
         </div>
         <TextField
           label="Email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={emailError}
+          error={emailError ?? server.messageFor('email')}
         />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} hint={STAFF_PHONE_SENTENCE} />
-        <TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <TextField
+          label="Phone"
+          kind="phone"
+          phoneRegion={region}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={phoneError ?? server.messageFor('phone')}
+          hint={STAFF_PHONE_SENTENCE}
+        />
+        <TextField
+          kind="address"
+          label="Address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          error={server.messageFor('address')}
+        />
 
         {/* fieldset/legend is the correct grouping for a radio set — a bare <label> can't
             associate with two inputs at once. The border/margin/padding resets keep the visual

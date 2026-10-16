@@ -134,7 +134,7 @@ describe('the phone number on My Account', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Verify' }))
     expect(mockedPost).not.toHaveBeenCalled()
     expect(screen.getByLabelText(/^New phone number/)).toHaveValue('98765 43210')
-    expect(screen.getByText('Enter the number in international format, e.g. +919876543210.')).toBeInTheDocument()
+    expect(screen.getByText('Enter the phone number with the country code, for example +919876543210.')).toBeInTheDocument()
   })
 
   it('adds a number: code requested, code entered, number saved as verified', async () => {
@@ -168,7 +168,7 @@ describe('the phone number on My Account', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Add phone number' }))
     fireEvent.change(screen.getByLabelText(/^New phone number/), { target: { value: '9876543210' } })
-    expect(screen.getByText('Enter the number in international format, e.g. +919876543210.')).toBeInTheDocument()
+    expect(screen.getByText('Enter the phone number with the country code, for example +919876543210.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Send code' })).toBeDisabled()
     expect(mockedPost).not.toHaveBeenCalled()
   })

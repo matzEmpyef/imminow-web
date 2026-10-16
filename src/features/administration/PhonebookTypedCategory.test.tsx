@@ -42,7 +42,7 @@ describe('Phonebook: a typed category', () => {
   it('gives the phone the one phone sentence as its help, and as its message for a bad number', () => {
     render(<AddPhonebookContactModal categories={[]} onClose={() => {}} />)
     expect(screen.getByText(PHONE_SENTENCE)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText(/^Phone/), { target: { value: '12-34' } })
+    fireEvent.change(screen.getByLabelText(/^Phone/), { target: { value: 'call me' } })
     expect(screen.getAllByText(PHONE_SENTENCE)).toHaveLength(1)
     expect(screen.getByLabelText(/^Phone/)).toHaveAttribute('aria-invalid', 'true')
   })

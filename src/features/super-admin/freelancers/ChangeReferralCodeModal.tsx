@@ -4,8 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useUpdateFreelancer, type Freelancer } from '@/queries/freelancerRates'
 import { showToast } from '@/lib/toast'
-
-const CODE_PATTERN = /^[A-Z0-9-]{4,20}$/
+import { REFERRAL_CODE_LENGTH, codeError as codeErrorOf, normaliseCode } from '@/lib/validation'
 
 /**
  * Changing a freelancer's referral code retires the old one AT ONCE (user, 2026-09-11) — anything
@@ -18,16 +17,16 @@ export function ChangeReferralCodeModal({ freelancer, onClose }: { freelancer: F
   const [code, setCode] = useState(freelancer.referral_code ?? '')
   const [touched, setTouched] = useState(false)
 
-  const valid = CODE_PATTERN.test(code)
-  const codeError = touched && code.length > 0 && !valid ? 'Use 4–20 letters, digits or dashes.' : undefined
-  const unchanged = code === freelancer.referral_code
+  const codeError = codeErrorOf(code, REFERRAL_CODE_LENGTH)
+  const valid = code.length > 0 && !codeError
+  const unchanged = normaliseCode(code) === freelancer.referral_code
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setTouched(true)
     if (!valid || unchanged) return
     updateFreelancer.mutate(
-      { id: freelancer.id, referral_code: code },
+      { id: freelancer.id, referral_code: normaliseCode(code) },
       {
         onSuccess: () => {
           showToast('Referral code changed')
@@ -60,11 +59,12 @@ export function ChangeReferralCodeModal({ freelancer, onClose }: { freelancer: F
     >
       <form id="change-code-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="code"
           label="New referral code"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           onBlur={() => setTouched(true)}
-          error={codeError}
+          error={touched ? codeError : undefined}
           className="font-mono"
         />
         <p className="rounded-md bg-warning/10 px-md py-sm text-body-sm text-warning">

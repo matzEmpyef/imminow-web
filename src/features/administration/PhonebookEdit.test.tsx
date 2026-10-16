@@ -68,7 +68,7 @@ describe('Phonebook editing', () => {
     await waitFor(() =>
       expect(mockedPatch).toHaveBeenCalledWith('/phonebook/{id}', {
         params: { path: { id: 'c1' } },
-        body: { name: 'Anand Travels', category: 'Vendor', phone: '+91 90000 00000', email: 'a@example.com' },
+        body: { name: 'Anand Travels', category: 'Vendor', phone: '+919000000000', email: 'a@example.com' },
       }),
     )
     await waitFor(() => expect(showToast).toHaveBeenCalledWith('Anand Travels saved'))

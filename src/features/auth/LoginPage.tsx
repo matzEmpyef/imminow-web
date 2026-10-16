@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { ApiError, useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { scopeHomePath } from '@/lib/roleHome'
+import { EMAIL_ERROR, isValidEmail, normaliseEmail } from '@/lib/validation'
 import { SessionGate } from '@/features/auth/SessionGate'
 import {
   SESSION_END_MESSAGES,
@@ -15,7 +16,6 @@ import {
   type LoginLocationState,
 } from '@/lib/sessionNotice'
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // The wavy seam between the two halves (user-requested, 2026-08-19 — "I don't want straight
 // line in login page... I want curly border"), drawn as a single SVG path rather than a CSS
@@ -98,15 +98,15 @@ export function LoginPage() {
     return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
   }
 
-  const emailError = touched.email && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
+  const emailError = touched.email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   const passwordError = touched.password && !password ? 'Password is required.' : undefined
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setTouched({ email: true, password: true })
-    if (!EMAIL_PATTERN.test(email) || !password) return
+    if (!isValidEmail(email) || !password) return
     login.mutate(
-      { email, password },
+      { email: normaliseEmail(email), password },
       {
         onSuccess: (data) => navigate(landingPathAfterSignIn({ role: data.user.role, from: link?.from, at: link?.at }), { replace: true }),
       },

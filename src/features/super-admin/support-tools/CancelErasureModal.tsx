@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useCancelErasure } from '@/queries/supportTools'
 import { KEEP_REASON_NOTE } from './erasureReasonNotes'
+import { isTextOk, checkText } from '@/lib/validation'
 
 /**
  * "Keep this account": cancels a scheduled erasure (gate 12f; Super Admin, with a reason). Used
@@ -31,7 +32,7 @@ export function CancelErasureModal({
   const [attempted, setAttempted] = useState(false)
 
   function handleKeep() {
-    if (!reason.trim()) {
+    if (!isTextOk('reason', reason)) {
       setAttempted(true)
       return
     }
@@ -75,13 +76,14 @@ export function CancelErasureModal({
         </p>
         <p className="text-body-sm text-text-secondary">Their closed cases and chats stay closed.</p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Who asked, and how you checked it was them"
-          error={attempted && !reason.trim() ? 'Add a reason.' : undefined}
+          error={attempted ? checkText('reason', reason) : undefined}
         />
         <p className="-mt-xs text-caption text-text-secondary">{KEEP_REASON_NOTE}</p>
       </div>

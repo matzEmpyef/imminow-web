@@ -6,7 +6,7 @@ import { TextField } from '@/components/TextField'
 import { retryAfterSeconds, countdownText } from '@/lib/retryAfter'
 import { showToast } from '@/lib/toast'
 import { useCountdown } from '@/lib/useCountdown'
-import { E164_PHONE_ERROR, isValidE164Phone } from '@/lib/validation'
+import { readPhone } from '@/lib/validation'
 import {
   stepUpChannelsFrom,
   usePhoneStepUp,
@@ -17,11 +17,6 @@ import {
   useVerifyStepUpCode,
   type StepUpChannel,
 } from '@/queries/profile'
-
-/** Spaces, hyphens, dots and brackets people type between digits; the server wants plain E.164. */
-function plainNumber(raw: string): string {
-  return raw.replace(/[\s\-().]/g, '')
-}
 
 export const UNVERIFIED_NOTE =
   'An unverified number may be removed from this account if its owner verifies it elsewhere. Verify it to keep it.'
@@ -93,9 +88,12 @@ export function PhoneSection({
   const [secondOfTwo, setSecondOfTwo] = useState(false)
   const wait = useCountdown()
 
-  const typed = plainNumber(draft)
-  const draftError = draft.trim() && !isValidE164Phone(typed) ? E164_PHONE_ERROR : undefined
-  const canSend = isValidE164Phone(typed) && !asking && wait.secondsLeft === 0
+  // The one phone rule: with a country code, spaces and hyphens ignored; the number goes out as
+  // plain E.164. A +91 number is ten digits starting 6 to 9.
+  const reading = readPhone(draft)
+  const typed = reading.ok ? reading.e164 : ''
+  const draftError = draft.trim() && !reading.ok ? reading.message : undefined
+  const canSend = reading.ok && !asking && wait.secondsLeft === 0
 
   function showFailure(error: unknown, fallback: string) {
     setRequestError(error instanceof Error ? error.message : fallback)
@@ -200,9 +198,9 @@ export function PhoneSection({
 
   async function startVerify() {
     if (!phone) return
-    const number = plainNumber(phone)
-    if (isValidE164Phone(number)) {
-      await ask(number)
+    const stored = readPhone(phone)
+    if (stored.ok) {
+      await ask(stored.e164)
       return
     }
     // A legacy number typed without its country code cannot be texted as it is.

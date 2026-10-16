@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate, localDateISO } from '@/lib/time'
+import { dateOfBirthError, isTextOk } from '@/lib/validation'
 import { useCorrectDateOfBirth, type DateOfBirthCorrection, type UserSearchResult } from '@/queries/supportTools'
 
 /** What the correction did to the guardian requirement, in words. `none` says nothing. */
@@ -37,7 +38,8 @@ export function DateOfBirthForm({ result, onCancel }: { result: UserSearchResult
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState<DateOfBirthCorrection | null>(null)
 
-  const canContinue = Boolean(dateOfBirth) && Boolean(reason.trim()) && Boolean(password)
+  const dobError = dateOfBirthError(dateOfBirth)
+  const canContinue = Boolean(dateOfBirth) && !dobError && isTextOk('reason', reason) && Boolean(password)
   const error = correct.error
   const code = error instanceof ApiError ? error.code : undefined
   const passwordRefused = code === 'invalid_current_password' || code === 'step_up_required'
@@ -121,9 +123,10 @@ export function DateOfBirthForm({ result, onCancel }: { result: UserSearchResult
         max={localDateISO()}
         value={dateOfBirth}
         onChange={(e) => setDateOfBirth(e.target.value)}
-        error={dateRefused ? error?.message : undefined}
+        error={dobError ?? (dateRefused ? error?.message : undefined)}
       />
       <TextAreaField
+        kind="reason"
         label="Which document did you check?"
         required
         rows={2}

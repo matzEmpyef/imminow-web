@@ -6,11 +6,10 @@ import { ApiError } from '@/api/errors'
 import { humaniseCode } from '@/lib/humanise'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate } from '@/lib/time'
+import { checkText, isTextOk } from '@/lib/validation'
 import { ERASE_REASON_NOTE, IMMEDIATE_LEGAL_BASIS_NOTE } from './erasureReasonNotes'
 import { useEraseUserData, useErasurePreview, type ErasureQueued, type UserSearchResult } from '@/queries/supportTools'
 
-/** A legal request must say what it is: the server refuses a shorter reason. */
-const IMMEDIATE_REASON_MIN = 20
 /** The window the server gives a scheduled erasure. Only used to word the date before sending. */
 const WINDOW_DAYS = 30
 
@@ -53,8 +52,10 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
   const identifier = result.email ?? result.phone ?? ''
   const identifierKind = result.email ? 'email' : 'phone number'
   const identifierMatches = Boolean(identifier) && sameIdentifier(confirmText, identifier)
-  const reasonTooShort = immediate && reason.trim().length < IMMEDIATE_REASON_MIN
-  const canContinue = Boolean(reason.trim()) && !reasonTooShort && identifierMatches && Boolean(password)
+  // A legal request must say what it is: at least 20 characters. Any other reason is 3 to 2000.
+  const reasonKind = immediate ? 'erasureReason' : 'reason'
+  const reasonOk = isTextOk(reasonKind, reason)
+  const canContinue = reasonOk && identifierMatches && Boolean(password)
 
   const estimatedDate = formatDate(new Date(Date.now() + WINDOW_DAYS * 24 * 60 * 60 * 1000))
   const error = eraseData.error
@@ -207,16 +208,14 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
       </p>
 
       <TextAreaField
+        kind={reasonKind}
         label="Reason"
         required
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        error={
-          immediate && reason.trim() && reasonTooShort
-            ? `A legal request needs a reason of at least ${IMMEDIATE_REASON_MIN} characters.`
-            : undefined
-        }
+        // Said at once, in red, once a legal request is chosen (not only after the field is left).
+        error={immediate && reason.trim() ? checkText('erasureReason', reason) : undefined}
       />
       {/* Always visible, not a hint: a hint gives way to an error message, and this must not. */}
       <p className="-mt-xs text-caption text-text-secondary">

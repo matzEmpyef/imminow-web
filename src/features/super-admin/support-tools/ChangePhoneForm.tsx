@@ -5,13 +5,9 @@ import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate } from '@/lib/time'
-import { E164_PHONE_ERROR, isValidE164Phone } from '@/lib/validation'
+import { isTextOk, readPhone } from '@/lib/validation'
 import { useRecordUserPhone, type UserSearchResult } from '@/queries/supportTools'
 
-/** Spaces, hyphens, dots and brackets people type between digits; the server wants plain E.164. */
-function plainNumber(raw: string): string {
-  return raw.replace(/[\s\-().]/g, '')
-}
 
 /**
  * Records a new phone number for a student who cannot use their old one (owner ruling 1,
@@ -43,9 +39,11 @@ export function ChangePhoneForm({
   const [password, setPassword] = useState('')
   const [done, setDone] = useState<UserSearchResult | null>(null)
 
-  const typed = plainNumber(newPhone)
-  const phoneError = newPhone.trim() && !isValidE164Phone(typed) ? E164_PHONE_ERROR : undefined
-  const canSubmit = isValidE164Phone(typed) && reason.trim().length >= 3 && Boolean(password)
+  // Platform staff have no country of their own: the number is typed with its country code.
+  const reading = readPhone(newPhone)
+  const typed = reading.ok ? reading.e164 : ''
+  const phoneError = newPhone.trim() && !reading.ok ? reading.message : undefined
+  const canSubmit = reading.ok && isTextOk('reason', reason) && Boolean(password)
 
   const error = record.error
   const code = error instanceof ApiError ? error.code : undefined
@@ -91,6 +89,7 @@ export function ChangePhoneForm({
         error={phoneError ?? (numberRefused ? error?.message : undefined)}
       />
       <TextAreaField
+        kind="reason"
         label="Reason"
         required
         rows={2}

@@ -7,6 +7,7 @@ import { CaseCarryFields } from '@/components/CaseCarryFields'
 import { carryForSend, carryQuestions, DEFAULT_CARRY, movedSentence, type CarriedItem } from '@/lib/caseCarry'
 import { admissionCommissionBody, admissionRefusal, emptyAmounts, stillNeeded } from '@/lib/commissionAmounts'
 import { useSwitchCandidates, useSwitchConsultancy, type UserSearchResult } from '@/queries/supportTools'
+import { isTextOk } from '@/lib/validation'
 
 const BLOCKED_REASON_LABELS: Record<string, string> = {
   current_consultancy: 'Current consultancy',
@@ -146,7 +147,7 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
 
   return (
     <div className="flex flex-col gap-sm">
-      <TextField label="Search by name or city" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <TextField kind="search" label="Search by name or city" value={query} onChange={(e) => setQuery(e.target.value)} />
       <ul className="flex max-h-64 flex-col gap-xs overflow-y-auto">
         {filtered.length === 0 && <li className="text-body-sm text-text-secondary">No matches.</li>}
         {filtered.map((c) => {
@@ -187,12 +188,12 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
           )
         })}
       </ul>
-      <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       <div className="flex items-center justify-end gap-sm">
         <Button size="sm" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button size="sm" disabled={!selectedId || !reason.trim()} onClick={() => setConfirming(true)}>
+        <Button size="sm" disabled={!selectedId || !isTextOk('reason', reason)} onClick={() => setConfirming(true)}>
           Continue
         </Button>
       </div>

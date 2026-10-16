@@ -24,6 +24,17 @@ import { useCountries } from '@/queries/countries'
 import { showToast } from '@/lib/toast'
 import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
+import {
+  VENUE_CODE_LENGTH,
+  cleanName,
+  cleanText,
+  codeError,
+  isTextOk,
+  normaliseCode,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
 
 type RedemptionPartner = components['schemas']['RedemptionPartner']
 type CodeMode = NonNullable<RedemptionPartner['code_mode']>
@@ -33,13 +44,8 @@ type PartnerKind = NonNullable<RedemptionPartner['kind']>
 // and unique across every branch on the server (409 code_taken if it collides) — validated here
 // first so the admin gets an answer before the round trip, then the server's own message covers
 // the case this can't catch (someone else already holding the code).
-const CUSTOM_CODE_PATTERN = /^[A-Z0-9-]+$/
 function customCodeError(code: string): string | undefined {
-  if (!code) return undefined
-  if (code.length < 6 || !CUSTOM_CODE_PATTERN.test(code)) {
-    return 'At least 6 characters — capital letters, digits and dashes only.'
-  }
-  return undefined
+  return codeError(code, VENUE_CODE_LENGTH)
 }
 
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
@@ -90,8 +96,8 @@ function AddLocationForm({ partnerId, onClose }: { partnerId: string; onClose: (
       }
     >
       <form id="add-location-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
-        <TextField label="District/County" value={district} onChange={(e) => setDistrict(e.target.value)} />
+        <TextField kind="label" label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
+        <TextField kind="label" label="District/County" value={district} onChange={(e) => setDistrict(e.target.value)} />
         <CountrySelect
           label="Country"
           required
@@ -279,6 +285,8 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
           <div className="flex flex-col gap-xs">
             <div className="flex items-end gap-sm">
               <TextField
+                kind="code"
+                codeRange={VENUE_CODE_LENGTH}
                 label="Custom code"
                 value={sharedCodeDraft}
                 onChange={(e) => setSharedCodeDraft(e.target.value.toUpperCase())}
@@ -289,7 +297,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                 loading={rotateCode.isPending}
                 disabled={!sharedCodeDraft.trim() || Boolean(customCodeError(sharedCodeDraft.trim()))}
                 onClick={() =>
-                  rotateCode.mutate({ code: sharedCodeDraft.trim() }, { onSuccess: () => setSharedCodeDraft('') })
+                  rotateCode.mutate({ code: normaliseCode(sharedCodeDraft) }, { onSuccess: () => setSharedCodeDraft('') })
                 }
               >
                 Set Code
@@ -344,6 +352,8 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                   <div className="flex flex-col gap-xs">
                     <div className="flex items-end gap-sm">
                       <TextField
+                        kind="code"
+                        codeRange={VENUE_CODE_LENGTH}
                         label="Custom code"
                         value={locationCodeDrafts[loc.id!] ?? ''}
                         onChange={(e) =>
@@ -418,17 +428,24 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
   const [logoUrl, setLogoUrl] = useState('')
   const [partnerCountries, setPartnerCountries] = useState<string[]>([])
   const isOnline = kind === 'online'
-  const canSubmit = Boolean(name) && (!isOnline || partnerCountries.length > 0)
+  const region = usePhoneRegion()
+  const contactPhoneError = checkPhone(contactPhone, region)
+  const canSubmit =
+    isTextOk('title', name) &&
+    isTextOk('label', category, { optional: true }) &&
+    isTextOk('name', contactPerson, { optional: true }) &&
+    !contactPhoneError &&
+    (!isOnline || partnerCountries.length > 0)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
     createPartner.mutate(
       {
-        name,
-        category,
-        contact_person: contactPerson,
-        contact_phone: contactPhone,
+        name: cleanText(name),
+        category: cleanText(category),
+        contact_person: cleanName(contactPerson),
+        contact_phone: contactPhone.trim() ? phoneToSend(contactPhone, region) : '',
         kind,
         ...(isOnline ? { logo_url: logoUrl || null, countries: partnerCountries } : {}),
       },
@@ -461,7 +478,7 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
       }
     >
       <form id="add-partner-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="title" label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
         <SegmentedControl
           label="Type"
           value={kind}
@@ -471,9 +488,16 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
             { value: 'online', label: 'Online brand', description: 'Digital vouchers with codes' },
           ]}
         />
-        <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-        <TextField label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
-        <TextField label="Contact phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+        <TextField kind="label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
+        <TextField kind="name" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+        <TextField
+          label="Contact phone"
+          kind="phone"
+          phoneRegion={region}
+          value={contactPhone}
+          onChange={(e) => setContactPhone(e.target.value)}
+          error={contactPhoneError}
+        />
         {isOnline && (
           <>
             <ImageUploadField label="Logo" value={logoUrl} onChange={setLogoUrl} />
@@ -504,12 +528,26 @@ function EditPartnerModal({ partner, onClose }: { partner: RedemptionPartner; on
   const [category, setCategory] = useState(partner.category ?? '')
   const [contactPerson, setContactPerson] = useState(partner.contact_person ?? '')
   const [contactPhone, setContactPhone] = useState(partner.contact_phone ?? '')
+  const region = usePhoneRegion()
+  // A number saved before the rule was one is not flagged until someone edits it.
+  const phoneChanged = contactPhone !== (partner.contact_phone ?? '')
+  const contactPhoneError = phoneChanged ? checkPhone(contactPhone, region) : undefined
+  const canSave =
+    isTextOk('title', name) &&
+    isTextOk('label', category, { optional: true }) &&
+    isTextOk('name', contactPerson, { optional: true }) &&
+    !contactPhoneError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name) return
+    if (!canSave) return
     updatePartner.mutate(
-      { name, category, contact_person: contactPerson, contact_phone: contactPhone },
+      {
+        name: cleanText(name),
+        category: cleanText(category),
+        contact_person: cleanName(contactPerson),
+        contact_phone: phoneChanged && contactPhone.trim() ? phoneToSend(contactPhone, region) : contactPhone.trim(),
+      },
       {
         onSuccess: () => {
           showToast(`${name} updated`)
@@ -529,17 +567,25 @@ function EditPartnerModal({ partner, onClose }: { partner: RedemptionPartner; on
           {updatePartner.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{updatePartner.error.message}</p>
           )}
-          <Button type="submit" form="edit-partner-form" loading={updatePartner.isPending} disabled={!name}>
+          <Button type="submit" form="edit-partner-form" loading={updatePartner.isPending} disabled={!canSave}>
             Save Changes
           </Button>
         </>
       }
     >
       <form id="edit-partner-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-        <TextField label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
-        <TextField label="Contact phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+        <TextField kind="title" label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
+        <TextField kind="name" label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+        <TextField
+          label="Contact phone"
+          kind="phone"
+          autoCheck={false}
+          phoneRegion={region}
+          value={contactPhone}
+          onChange={(e) => setContactPhone(e.target.value)}
+          error={contactPhoneError}
+        />
       </form>
     </Modal>
   )

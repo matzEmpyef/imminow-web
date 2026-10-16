@@ -6,7 +6,16 @@ import { TextField } from '@/components/TextField'
 import { useInviteEmployee } from '@/queries/staff'
 import { BranchAccessPicker } from './BranchAccessPicker'
 import { primaryBranchError, type BranchAccess } from './branchAccess'
-import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import {
+  cleanName,
+  emailError as checkEmail,
+  isTextOk,
+  normaliseEmail,
+  phoneError as checkPhone,
+  phoneToSend,
+} from '@/lib/validation'
+import { usePhoneRegion } from '@/lib/phoneRegion'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 import { showToast } from '@/lib/toast'
 import { inviteEmployeeErrorMessage } from '@/lib/inviteEmployeeWords'
 import type { components } from '@/api/schema'
@@ -51,20 +60,28 @@ export function InviteEmployeeModal({
 
   const selectedDesignation = designations.find((d) => d.id === designationId)
 
-  const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
+  const region = usePhoneRegion()
+  const emailError = checkEmail(email)
+  const phoneError = checkPhone(phone, region)
+  const server = useServerFieldErrors(inviteEmployee.error, { first_name: firstName, last_name: lastName, email, phone })
   const primaryError = showBranches ? primaryBranchError(access) : undefined
-  const canInvite = Boolean(firstName && lastName && email) && !emailError && !phoneError && !primaryError
+  const canInvite =
+    isTextOk('name', firstName) &&
+    isTextOk('name', lastName) &&
+    Boolean(email.trim()) &&
+    !emailError &&
+    !phoneError &&
+    !primaryError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canInvite) return
     inviteEmployee.mutate(
       {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone: phone || undefined,
+        first_name: cleanName(firstName),
+        last_name: cleanName(lastName),
+        email: normaliseEmail(email),
+        phone: phone.trim() ? phoneToSend(phone, region) : undefined,
         // Without the Designations feature (Starter's preset) neither is asked for nor sent: the
         // server puts the invitee on the protected Full access designation (owner, 2026-09-25).
         ...(hasDesignations
@@ -76,7 +93,7 @@ export function InviteEmployeeModal({
       },
       {
         onSuccess: () => {
-          showToast(`Invite sent to ${email}`)
+          showToast(`Invite sent to ${normaliseEmail(email)}`)
           onClose()
         },
       },
@@ -90,7 +107,7 @@ export function InviteEmployeeModal({
       widthRem={28}
       footer={
         <>
-          {inviteEmployee.isError && (
+          {inviteEmployee.isError && !server.allBesideFields && (
             <p role="alert" className="mr-auto self-center text-body-sm text-error">
               {inviteEmployeeErrorMessage(inviteEmployee.error)}
             </p>
@@ -103,22 +120,35 @@ export function InviteEmployeeModal({
     >
       <form id="invite-employee-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="grid grid-cols-2 gap-md">
-          <TextField label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          <TextField label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <TextField
+            kind="name"
+            label="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            error={server.messageFor('first_name')}
+          />
+          <TextField
+            kind="name"
+            label="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            error={server.messageFor('last_name')}
+          />
         </div>
         <TextField
           label="Email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={emailError}
+          error={emailError ?? server.messageFor('email')}
         />
         <TextField
           label="Phone"
           type="tel"
+          phoneRegion={region}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          error={phoneError}
+          error={phoneError ?? server.messageFor('phone')}
         />
         {hasDesignations ? (
           <>

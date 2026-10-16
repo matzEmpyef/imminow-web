@@ -9,6 +9,8 @@ vi.mock('@/queries/leads', () => ({
   useCreateLead: vi.fn(),
 }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+// A consultancy in India: a number typed without a country code is read as +91.
+vi.mock('@/lib/phoneRegion', () => ({ usePhoneRegion: () => '91' }))
 
 import { ApiError } from '@/api/errors'
 import { useCreateLead } from '@/queries/leads'
@@ -36,7 +38,7 @@ describe('Add Lead — what the server says about the contact', () => {
     render(<AddLeadModal onClose={() => {}} />)
     fill('Asha Nair', '98765 43210')
     fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
-    expect(mutate.mock.calls[0][0]).toMatchObject({ name: 'Asha Nair', phone: '98765 43210' })
+    expect(mutate.mock.calls[0][0]).toMatchObject({ name: 'Asha Nair', phone: '+919876543210' })
 
     // The form re-renders when the answer arrives.
     act(() => mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', phone: '+919876543210' }))
@@ -157,7 +159,7 @@ describe('Add Lead — the served warning and sentences (T4-18)', () => {
   it('puts the served phone sentence beside the phone, and the phone hint says the same', () => {
     render(<AddLeadModal onClose={() => {}} />)
     expect(screen.getByText(PHONE_SENTENCE)).toBeInTheDocument() // the hint, while there is no error
-    fill('Bad Phone', '12345')
+    fill('Bad Phone', 'call me')
     // The console's own check says the same sentence before any request is made.
     expect(screen.getAllByText(PHONE_SENTENCE)).toHaveLength(1)
     expect(screen.getByLabelText(/^Phone/)).toHaveAttribute('aria-invalid', 'true')

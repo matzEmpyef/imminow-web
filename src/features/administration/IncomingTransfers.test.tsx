@@ -92,7 +92,7 @@ describe('issuing a transfer code', () => {
     const dialog = screen.getByRole('dialog')
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Phone' }))
     expect(within(dialog).getByText(sentence)).toBeInTheDocument()
-    fireEvent.change(within(dialog).getByLabelText(/registered phone/), { target: { value: '98' } })
+    fireEvent.change(within(dialog).getByLabelText(/registered phone/), { target: { value: 'call me' } })
     expect(within(dialog).getAllByText(sentence)).toHaveLength(1)
     expect(within(dialog).getByLabelText(/registered phone/)).toHaveAttribute('aria-invalid', 'true')
   })
