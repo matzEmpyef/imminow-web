@@ -46,6 +46,7 @@ import { KYC_BADGE } from './kycBadge'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
 import { humaniseCode } from '@/lib/humanise'
+import { FILE_PREFIX_LENGTH, FILE_PREFIX_LETTERS_ONLY, cleanFilePrefix, droppedFromPrefix } from '@/lib/filePrefix'
 
 type Consultancy = components['schemas']['Consultancy']
 
@@ -240,6 +241,7 @@ function MfaSection({ consultancy }: { consultancy: Consultancy }) {
               : 'Every employee will have to use two-factor authentication once sign-in set-up is live. Their staff are told now.'}
           </p>
           <TextField
+            kind="reason"
             label="Reason"
             required
             value={reason}
@@ -344,6 +346,7 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
               className="w-32"
             />
             <TextField
+              kind="reason"
               label="Reason"
               required
               value={reason}
@@ -673,7 +676,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           <MoneyField
             label="Amount"
             required={!noCharge}
-            min={0}
+            allowZero={noCharge}
             disabled={noCharge}
             className="col-span-2"
             value={noCharge ? '0' : amount}
@@ -772,6 +775,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
   const [seatLimit, setSeatLimit] = useState(consultancy.seat_limit)
   const [overrides, setOverrides] = useState<Record<string, boolean>>(consultancy.entitlement_overrides ?? {})
   const [filePrefix, setFilePrefix] = useState(consultancy.file_number_prefix ?? '')
+  const [prefixDropped, setPrefixDropped] = useState(false)
   const [freelancerEnabled, setFreelancerEnabled] = useState(Boolean(consultancy.freelancer_enabled))
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [confirmingReactivate, setConfirmingReactivate] = useState(false)
@@ -1064,6 +1068,8 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
               {/* Disabled while the plan is changing: saving a plan change resets seats to the new
                   plan's default (see handleSave), so a number typed here would be silently dropped. */}
               <TextField
+                kind="count"
+                countMin={1}
                 label="Seat limit"
                 type="number"
                 value={seatLimit}
@@ -1073,21 +1079,19 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
               <TextField
                 label="File number prefix"
                 value={filePrefix}
-                onChange={(e) =>
-                  setFilePrefix(
-                    e.target.value
-                      .toUpperCase()
-                      .replace(/[^A-Z]/g, '')
-                      .slice(0, 3),
-                  )
-                }
-                maxLength={3}
+                onChange={(e) => {
+                  setFilePrefix(cleanFilePrefix(e.target.value))
+                  setPrefixDropped(droppedFromPrefix(e.target.value))
+                }}
+                maxLength={FILE_PREFIX_LENGTH}
+                error={prefixDropped ? FILE_PREFIX_LETTERS_ONLY : undefined}
                 disabled={consultancy.file_number_locked}
                 className="uppercase"
               />
             </div>
             {tierChanged && (
               <TextAreaField
+                kind="reason"
                 label="Reason for the plan change"
                 value={planReason}
                 onChange={(e) => setPlanReason(e.target.value)}

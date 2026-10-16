@@ -6,6 +6,7 @@ import { Badge } from '@/components/Badge'
 import { FinalizedCountryIcon, StudentProfilePanels } from '@/components/StudentProfileFields'
 import type { components } from '@/api/schema'
 import { CLIENT_STATUS_LABELS, displayStatusOf } from '@/lib/clientStatus'
+import { firstChar } from '@/lib/validation'
 
 type Client = components['schemas']['Client']
 
@@ -29,7 +30,7 @@ export function ClientDetailModal({ client, onClose }: { client: Client; onClose
   const header = (
     <div className="flex min-w-0 flex-1 items-center gap-md">
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-h2 font-semibold text-primary">
-        {client.student.first_name.charAt(0).toUpperCase()}
+        {firstChar(client.student.first_name)}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-xs">
         <h2 className="truncate text-h2 text-text-primary">{name}</h2>

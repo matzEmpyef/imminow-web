@@ -10,6 +10,7 @@ import { formatDateTime, formatDuration } from '@/lib/time'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { type Event, type QuizLeaderboardEntry } from './quizShared'
 import { studentTypeLabel } from './studentTypeLabel'
+import { fileNameStem } from '@/lib/saveFile'
 
 // Same column style as the Webinar/Physical Meeting registrants export (EventAttendanceCell.tsx)
 // and the Audit Log — one shared toCsv/downloadCsv (lib/csv.ts, 2026-09-12 "New exports" pass).
@@ -160,7 +161,7 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
             disabled={allEntries.length === 0}
             onClick={() =>
               downloadCsv(
-                `${event.title.replace(/[^\w\- ]+/g, '')}-leaderboard.csv`,
+                `${fileNameStem(event.title, 'quiz')}-leaderboard.csv`,
                 toCsv(allEntries, isFinal ? [...LEADERBOARD_CSV_COLUMNS, PRIZE_CSV_COLUMN] : LEADERBOARD_CSV_COLUMNS),
               )
             }

@@ -34,6 +34,7 @@ import {
   displayStatusOf,
   type ClientStatusColor,
 } from '@/lib/clientStatus'
+import { firstChar } from '@/lib/validation'
 
 // Labels and colours come from one shared map (2026-09-14) — this tab, the detail modal and the
 // profile header each used to label the same status differently ("Closed" here for a completed
@@ -157,7 +158,7 @@ export function OverviewTab({
       <Card className="flex flex-col gap-md">
         <div className="flex items-center gap-md">
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-h2 font-semibold text-primary">
-            {data.student.first_name.charAt(0).toUpperCase()}
+            {firstChar(data.student.first_name)}
           </span>
           <div className="min-w-0">
             <p className="truncate text-h3 text-text-primary">

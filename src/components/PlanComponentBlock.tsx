@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { ExternalLink, GripVertical, Link2, Pencil, X } from 'lucide-react'
 import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS, type ComponentInput } from '@/lib/planComponents'
 import { sanitizeRichTextForDisplay } from '@/lib/sanitizeHtml'
+import { graphemeLength, clipGraphemes } from '@/lib/validation'
 
 // Shared between Plan Templates' step-builder and the live client Plan editor (both build the
 // same kind of step out of the same component types) — extracted here rather than duplicated so
@@ -33,7 +34,8 @@ function textSnippet(component: ComponentInput): string {
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-  return text.length > 60 ? `${text.slice(0, 57)}…` : text
+  // Counted and cut by what a reader sees, so a Hindi or Tamil letter or an emoji is never split in half.
+  return graphemeLength(text) > 60 ? clipGraphemes(text, 57) : text
 }
 
 /**

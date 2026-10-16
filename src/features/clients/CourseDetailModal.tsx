@@ -35,6 +35,7 @@ import { IntakeStatusBadge } from '@/features/super-admin/IntakeStatusBadge'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { DetailSection as Section } from './DetailSection'
 import { campusLabel, courseCampusLabel } from '@/lib/campus'
+import { firstChar } from '@/lib/validation'
 
 type Course = components['schemas']['Course']
 type IntakeDeadline = components['schemas']['IntakeDeadline']
@@ -184,7 +185,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         {course.college_logo_url ? (
           <img src={mediaUrl(course.college_logo_url)} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
         ) : (
-          <span className="text-h1 font-semibold text-primary">{(course.college_name ?? '?').charAt(0).toUpperCase()}</span>
+          <span className="text-h1 font-semibold text-primary">{firstChar(course.college_name ?? '?')}</span>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-xs">

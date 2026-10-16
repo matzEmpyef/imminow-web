@@ -6,6 +6,7 @@ import { useMeUser } from '@/lib/me'
 import { useLogout } from '@/lib/useLogout'
 import { Drawer } from './Drawer'
 import { getHelpTopic } from '@/lib/helpContent'
+import { firstChar } from '@/lib/validation'
 
 export interface SidebarSubLink {
   label: string
@@ -180,7 +181,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
               className={`flex min-w-0 flex-1 items-center gap-sm rounded-md px-sm py-sm hover:bg-background ${collapsed ? 'justify-center' : ''}`}
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-body-sm font-medium text-primary">
-                {user ? user.first_name.charAt(0).toUpperCase() : '?'}
+                {user ? firstChar(user.first_name) : '?'}
               </span>
               {!collapsed && (
                 <div className="min-w-0 flex-1">

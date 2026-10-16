@@ -34,3 +34,18 @@ export function saveBlob(fileName: string, blob: Blob): void {
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
 }
+
+/**
+ * A title made safe to use in a download's file name: letters of every script (with their vowel
+ * signs), digits, spaces, hyphens and underscores stay; everything else (slashes, quotes, colons,
+ * emoji) goes. A title in Hindi or Tamil keeps its letters, so the file is not called "-leaderboard.csv".
+ * Falls back to `fallback` when nothing is left.
+ */
+export function fileNameStem(title: string | null | undefined, fallback: string): string {
+  const stem = (title ?? '')
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{M}\p{N}_ -]+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return stem || fallback
+}

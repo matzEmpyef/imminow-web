@@ -12,6 +12,7 @@ import { mediaUrl } from '@/lib/mediaUrl'
 import { countOf, formatCount } from '@/lib/counts'
 import { DetailSection as Section } from './DetailSection'
 import { campusLabel } from '@/lib/campus'
+import { firstChar } from '@/lib/validation'
 
 type College = components['schemas']['College']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -84,7 +85,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
         {college.logo_url ? (
           <img src={mediaUrl(college.logo_url)} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
         ) : (
-          <span className="text-h1 font-semibold text-primary">{(college.name ?? '?').charAt(0).toUpperCase()}</span>
+          <span className="text-h1 font-semibold text-primary">{firstChar(college.name ?? '?')}</span>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-xs">

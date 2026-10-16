@@ -12,6 +12,9 @@ import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
 import { fillWidthClass, tableFieldDomId, withoutBlankTableRows } from '@/lib/formFields'
 import { FormTableField } from './FormTableField'
 import { fieldMessages } from '@/api/errors'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { TITLE_MAX } from '@/lib/validation'
+import { normaliseLabel, FIRST_NAME_WORDS, LAST_NAME_WORDS, NAME_ONLY_WORDS, FULL_NAME_WORDS, EMAIL_WORDS, PHONE_WORDS, DOB_WORDS, NATIONALITY_WORDS } from '@/lib/profileLabels'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
 type FormAnswers = Record<string, unknown>
@@ -25,13 +28,6 @@ type Client = NonNullable<ReturnType<typeof useClient>['data']>
 // rest evenly. Written as a style because the column count follows the space, not a breakpoint.
 const MULTI_SELECT_COLUMNS = { gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))' } as const
 
-function normaliseLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z ]/g, ' ')
-    .replace(/ +/g, ' ')
-    .trim()
-}
 
 // Only facts the profile actually holds. `nationality` resolves from the student's resident
 // country - the nearest thing the profile records - and like every other prefill it is marked
@@ -41,19 +37,16 @@ function profileValueFor(label: string, client: Client): string | undefined {
   const s = client.student
   const prefs = client.preferences
   const has = (...needles: string[]) => needles.some((n) => l.includes(n))
-  if (has('first name', 'given name')) return s.first_name || undefined
-  if (has('last name', 'surname', 'family name')) return s.last_name || undefined
+  if (has(...FIRST_NAME_WORDS)) return s.first_name || undefined
+  if (has(...LAST_NAME_WORDS)) return s.last_name || undefined
   // "Full legal name" is the wording the seeded Applicant Background Form uses, so the name
   // needles cover the common variants rather than one exact spelling.
-  if (
-    has('full name', 'full legal name', 'legal name', 'name of applicant', 'name of the applicant') ||
-    ['name', 'applicant name', 'student name', 'candidate name'].includes(l)
-  )
+  if (has(...FULL_NAME_WORDS) || NAME_ONLY_WORDS.includes(l))
     return [s.first_name, s.last_name].filter(Boolean).join(' ') || undefined
-  if (has('email')) return s.email || undefined
-  if (has('phone', 'mobile', 'contact number')) return s.phone || undefined
-  if (has('date of birth', 'dob', 'birth date')) return prefs?.date_of_birth?.slice(0, 10) || undefined
-  if (has('nationality', 'citizenship')) return prefs?.resident_country || undefined
+  if (has(...EMAIL_WORDS)) return s.email || undefined
+  if (has(...PHONE_WORDS)) return s.phone || undefined
+  if (has(...DOB_WORDS)) return prefs?.date_of_birth?.slice(0, 10) || undefined
+  if (has(...NATIONALITY_WORDS)) return prefs?.resident_country || undefined
   return undefined
 }
 
@@ -139,7 +132,7 @@ function FillableField({
       return (
         <label className="flex flex-col gap-xs">
           {label}
-          <input
+          <input maxLength={TITLE_MAX}
             type="text"
             className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
@@ -151,7 +144,7 @@ function FillableField({
       return (
         <label className="flex flex-col gap-xs">
           {label}
-          <textarea
+          <LimitedTextArea kind="longText"
             rows={3}
             className="w-full rounded-md border border-border bg-surface p-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}

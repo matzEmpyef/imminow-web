@@ -194,3 +194,69 @@ describe('an account onboarded in a hurry', () => {
     expect(within(dialog).getByText(/head office needs its city/i)).toBeInTheDocument()
   })
 })
+
+// Phase 9, decision 154, ruling 13: a name in an Indian language has no letters A to Z, so no file
+// number prefix can be suggested from it. The admin types one, and the form says why.
+describe('the file number prefix of a name in another script', () => {
+  const prefixBox = (dialog: HTMLElement) => within(dialog).getByLabelText(/^File number prefix/) as HTMLInputElement
+
+  it('is suggested from the first three letters of a Latin name', () => {
+    const dialog = openForm()
+    expect(prefixBox(dialog).value).toBe('BLU')
+  })
+
+  it('is suggested through an accent: "Éire Visas" gives EIR', () => {
+    const dialog = openForm()
+    fireEvent.change(within(dialog).getByLabelText(/^Consultancy name/), { target: { value: 'Éire Visas' } })
+    expect(prefixBox(dialog).value).toBe('EIR')
+  })
+
+  it('is left empty for a Hindi name, says why, and blocks Create until the admin types one', () => {
+    const dialog = openForm()
+    fireEvent.change(within(dialog).getByLabelText(/^Consultancy name/), { target: { value: 'नीला सागर' } })
+    expect(prefixBox(dialog).value).toBe('')
+    expect(
+      within(dialog).getByText('This name has no letters A to Z, so no prefix can be suggested. Type up to 3 letters A to Z of your own.'),
+    ).toBeInTheDocument()
+
+    submit()
+    expect(createMutate).not.toHaveBeenCalled()
+    expect(screen.getByText(/Still needed:.*a file number prefix/)).toBeInTheDocument()
+
+    fireEvent.change(prefixBox(dialog), { target: { value: 'nsg' } })
+    expect(prefixBox(dialog).value).toBe('NSG')
+    submit()
+    expect(createMutate).toHaveBeenCalledTimes(1)
+    expect(createMutate.mock.calls[0][0]).toMatchObject({ name: 'नीला सागर', file_number_prefix: 'NSG' })
+  })
+
+  it('says only A to Z can be used when other letters are typed into the prefix', () => {
+    const dialog = openForm()
+    fireEvent.change(prefixBox(dialog), { target: { value: 'ब' } })
+    expect(within(dialog).getByText('Only the letters A to Z can be used in a prefix.')).toBeInTheDocument()
+  })
+})
+
+describe('what Create Account sends', () => {
+  it('trims the names and the address and lower-cases the admin email', () => {
+    const dialog = openForm()
+    fireEvent.change(within(dialog).getByLabelText(/^Consultancy name/), { target: { value: '  Blue Ocean  ' } })
+    fireEvent.change(within(dialog).getByLabelText(/^First name/), { target: { value: '  Laila ' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Street address/), { target: { value: ' 2nd Floor ' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Email/), { target: { value: ' Laila@Example.com ' } })
+    submit()
+    expect(createMutate.mock.calls[0][0]).toMatchObject({
+      name: 'Blue Ocean',
+      branch_address: '2nd Floor',
+      admin_first_name: 'Laila',
+      admin_email: 'laila@example.com',
+    })
+  })
+
+  it('refuses an admin name with a digit in it', () => {
+    const dialog = openForm()
+    fireEvent.change(within(dialog).getByLabelText(/^Last name/), { target: { value: 'Nair2' } })
+    submit()
+    expect(createMutate).not.toHaveBeenCalled()
+  })
+})

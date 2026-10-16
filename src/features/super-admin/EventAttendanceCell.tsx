@@ -7,6 +7,7 @@ import { useEventAttendance } from '@/queries/eventsAdmin'
 import { formatDateTime } from '@/lib/time'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import type { components } from '@/api/schema'
+import { fileNameStem } from '@/lib/saveFile'
 
 type Event = components['schemas']['Event']
 type EventAttendanceResponse = NonNullable<ReturnType<typeof useEventAttendance>['data']>
@@ -37,7 +38,7 @@ function DownloadRegistrantsButton({ event, data }: { event: Event; data?: Event
     <Button
       variant="secondary"
       size="sm"
-      onClick={() => downloadCsv(`${(event.title ?? 'event').replace(/[^\w\- ]+/g, '')}-registrants.csv`, registrantsCsv(data))}
+      onClick={() => downloadCsv(`${fileNameStem(event.title, 'event')}-registrants.csv`, registrantsCsv(data))}
     >
       <span className="flex items-center gap-xs">
         <Download className="h-4 w-4" />

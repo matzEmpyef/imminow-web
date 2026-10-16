@@ -57,6 +57,7 @@ import { ApiError } from '@/api/errors'
 import { useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 import type { components } from '@/api/schema'
 import type { StudyLevel } from '@/lib/studyLevels'
+import { slugifyLevel, cleanLevelCode, LEVEL_CODE_NEEDS_TYPING } from '@/lib/studyLevels'
 
 type Exam = components['schemas']['Exam']
 type CountrySetting = components['schemas']['CountrySetting']
@@ -631,8 +632,9 @@ function AddStateModal({ country, onClose }: { country: string; onClose: () => v
       }
     >
       <form id="add-state-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
         <TextField
+          kind="label"
           label="Type"
           value={type}
           onChange={(e) => setType(e.target.value)}
@@ -692,7 +694,7 @@ function RenameStateModal({
       }
     >
       <form id="rename-state-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
         <p className="text-caption text-text-secondary">
           Renaming updates every student profile, campus, institution, partner location and saved audience that uses
           this name.
@@ -755,7 +757,7 @@ function AddCountryModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="add-country-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Country name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Country name" required value={name} onChange={(e) => setName(e.target.value)} />
         <p className="text-caption text-text-secondary">
           Adding it here offers it platform-wide — in Countries Served, campus country, commission rates, redemption
           partner locations and the Sentpo app&apos;s target countries. Its ISO code and flag fill in from the server
@@ -1126,6 +1128,7 @@ function GuideEditorModal({
     >
       <div className="flex flex-col gap-md">
         <TextField
+          kind="title"
           label="Summary"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
@@ -1371,6 +1374,7 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
     >
       <form id="exam-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="label"
           label="Exam name"
           required
           value={name}
@@ -1413,6 +1417,9 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
           />
         </div>
         <TextField
+          kind="count"
+          countMin={1}
+          countMax={1200}
           label="Validity (months — blank if never expires)"
           type="number"
           value={validityMonths}
@@ -1432,17 +1439,6 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
   )
 }
 
-
-// A code is what every course row and every student preference stores forever, so it is derived
-// from the label as you type but stays editable before you commit — rather than generated
-// silently, which is how you end up with `master_s` and only find out via a filter that returns
-// nothing.
-function slugifyLevel(label: string) {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
 
 /**
  * The education ladder — ONE list behind a student's Target study level and a course's Level.
@@ -1751,15 +1747,16 @@ function StudyLevelFormModal({ level, onClose }: { level?: StudyLevel; onClose: 
       }
     >
       <form id="study-level-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Label" required value={label} onChange={(e) => setLabel(e.target.value)} />
+        <TextField kind="label" label="Label" required value={label} onChange={(e) => setLabel(e.target.value)} />
         <TextField
           label="Code (stored)"
           value={effectiveCode}
           disabled={isEditing}
           onChange={(e) => {
             setCodeEdited(true)
-            setCode(e.target.value)
+            setCode(cleanLevelCode(e.target.value))
           }}
+          error={!isEditing && label.trim() && !effectiveCode ? LEVEL_CODE_NEEDS_TYPING : undefined}
         />
         <p className="text-caption text-text-secondary">
           {isEditing

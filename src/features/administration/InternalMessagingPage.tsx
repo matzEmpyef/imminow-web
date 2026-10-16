@@ -15,6 +15,7 @@ import { avatarTheme } from '@/lib/avatarTheme'
 import { Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
 import { threadPagesOldestFirst } from '@/lib/pagination'
+import { SEARCH_MAX, firstChar } from '@/lib/validation'
 
 
 const EMPTY_CONVERSATIONS: NonNullable<ReturnType<typeof useInternalConversations>['data']>['items'] = []
@@ -76,7 +77,7 @@ export function InternalMessagingPage() {
           <div className="flex w-80 shrink-0 flex-col gap-sm">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-              <input
+              <input maxLength={SEARCH_MAX}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search colleagues…"
@@ -123,7 +124,7 @@ export function InternalMessagingPage() {
                       <span
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-body-sm font-semibold ${theme.bg} ${theme.text}`}
                       >
-                        {conversation.name.charAt(0).toUpperCase()}
+                        {firstChar(conversation.name)}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-sm">

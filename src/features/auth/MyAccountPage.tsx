@@ -19,6 +19,7 @@ import { isStaffScope } from '@/lib/me'
 import type { components } from '@/api/schema'
 import { formatDate, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { cleanName, isTextOk, firstChar } from '@/lib/validation'
 
 type NotificationSettings = components['schemas']['NotificationSettings']
 type Role = components['schemas']['User']['role']
@@ -75,7 +76,7 @@ const ROLE_LABEL: Record<Role, string> = {
 }
 
 function initials(first: string, last: string): string {
-  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '?'
+  return `${firstChar(first)}${firstChar(last)}` || '?'
 }
 
 // A read-only fact about the account, shown as text — not as a disabled input pretending to be
@@ -148,6 +149,7 @@ export function MyAccountPage() {
   const user = profile.data
   // The phone number is not part of this form: a new one is saved by entering a code texted to it.
   const dirty = firstName !== (user.first_name ?? '') || lastName !== (user.last_name ?? '')
+  const namesOk = isTextOk('name', firstName) && isTextOk('name', lastName)
   const organisation = isConsultancyStaff
     ? (consultancy.data?.name ?? '')
     : isPlatform
@@ -208,23 +210,23 @@ export function MyAccountPage() {
               className="mt-md flex flex-col gap-md"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (!dirty) return
+                if (!dirty || !namesOk) return
                 updateProfile.mutate(
-                  { first_name: firstName.trim(), last_name: lastName.trim() },
+                  { first_name: cleanName(firstName), last_name: cleanName(lastName) },
                   { onSuccess: () => showToast('Profile updated') },
                 )
               }}
             >
               <div className="grid gap-md sm:grid-cols-2">
-                <TextField label="First name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-                <TextField label="Last name" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                <TextField label="First name" kind="name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                <TextField label="Last name" kind="name" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
               {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
               <div className="flex items-center justify-end gap-sm">
                 {dirty && !updateProfile.isPending && (
                   <p className="text-caption text-text-secondary">Unsaved changes</p>
                 )}
-                <Button type="submit" loading={updateProfile.isPending} disabled={!dirty}>
+                <Button type="submit" loading={updateProfile.isPending} disabled={!dirty || !namesOk}>
                   Save changes
                 </Button>
               </div>
@@ -360,7 +362,9 @@ export function MyAccountPage() {
                 )
               })}
               {updateSettings.isError && (
-                <p className="mt-sm text-body-sm text-error">That change didn't save. Try again.</p>
+                <p role="alert" className="mt-sm text-body-sm text-error">
+                  {updateSettings.error.message || 'That change didn’t save. Try again.'}
+                </p>
               )}
             </div>
           )}

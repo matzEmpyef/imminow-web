@@ -19,7 +19,16 @@ import { useIsSuperAdmin } from '@/lib/me'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { collegeWithCoursesSource } from '@/queries/pickerSources'
 import { useUserSearch } from '@/queries/supportTools'
-import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
+import { cleanName, cleanText, emailError as checkEmail, isTextOk, normaliseEmail } from '@/lib/validation'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
+import {
+  FILE_PREFIX_LENGTH,
+  FILE_PREFIX_LETTERS_ONLY,
+  FILE_PREFIX_NEEDS_TYPING,
+  cleanFilePrefix,
+  droppedFromPrefix,
+  suggestedFilePrefix,
+} from '@/lib/filePrefix'
 import { showToast } from '@/lib/toast'
 import { formatDate, localDateISO } from '@/lib/time'
 import type { components } from '@/api/schema'
@@ -103,6 +112,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const [adminUser, setAdminUser] = useState<{ id: string; name: string; email: string } | null>(null)
   const [filePrefix, setFilePrefix] = useState('')
   const [filePrefixTouched, setFilePrefixTouched] = useState(false)
+  const [prefixDropped, setPrefixDropped] = useState(false)
   // Every account now ends somewhere (assumptions audit H9, approved 2026-09-19): an account
   // created with no term kept unlimited leads, clients and marketplace visibility forever, and
   // showed up only as a number on a card nobody had to clear. Blank means the 30-day trial below;
@@ -125,16 +135,19 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   // Auto-suggests from the name (first 3 letters, uppercased) until the admin types their own —
   // user-requested, 2026-08-15: "let admin decide what it is... Default derive from consultancy
   // name."
-  const derivedPrefix = name
-    .replace(/[^a-zA-Z]/g, '')
-    .slice(0, 3)
-    .toUpperCase()
+  // A name in another script (Hindi, Tamil…) has no letters A to Z, so nothing can be suggested: the
+  // admin types one, and the form says why (decision 154, ruling 13).
+  const derivedPrefix = suggestedFilePrefix(name)
   const effectivePrefix = filePrefixTouched ? filePrefix : derivedPrefix
+  const prefixNeedsTyping = Boolean(name.trim()) && !effectivePrefix
 
-  const adminEmailError = adminEmail && !isValidEmail(adminEmail) ? EMAIL_ERROR : undefined
+  const adminEmailError = checkEmail(adminEmail)
   const adminReady =
     adminMode === 'invite'
-      ? Boolean(adminFirstName && adminLastName && adminEmail && !adminEmailError)
+      ? isTextOk('name', adminFirstName) &&
+        isTextOk('name', adminLastName) &&
+        Boolean(adminEmail.trim()) &&
+        !adminEmailError
       : Boolean(adminUser)
   const headOfficeErrors = branchLocationErrors(headOffice)
   // The account's own city drives Manage Consultancies' column and its search (review M6). It is
@@ -142,27 +155,39 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   // one question is how they come to disagree (product owner, 2026-09-21). Still sent as `city`,
   // so nothing that reads the account's city has to change.
   const city = headOffice.city.trim()
-  const canSubmit = Boolean(name && city && branchAddress && adminReady) && branchLocationIsValid(headOffice)
+  const canSubmit =
+    isTextOk('title', name) &&
+    Boolean(city && isTextOk('address', branchAddress)) &&
+    adminReady &&
+    !prefixNeedsTyping &&
+    branchLocationIsValid(headOffice)
   // A click on an incomplete form says what is missing (review H1, 2026-09-12) instead of a
   // disabled button that explains nothing.
   const [attempted, setAttempted] = useState(false)
   const missing = [
-    !name && 'name',
+    !isTextOk('title', name) && 'name',
+    prefixNeedsTyping && 'a file number prefix',
     !city && "the head office's city",
-    !branchAddress && 'address',
+    !isTextOk('address', branchAddress) && 'address',
     // Named in the summary as well as marked on the field: the place sits several sections above
     // the button, and "Create" doing nothing with no explanation is the failure this list exists
     // to prevent.
     headOfficeErrors.state && "the head office's state",
     headOfficeErrors.district && "the head office's district",
     adminMode === 'invite'
-      ? (!adminFirstName || !adminLastName) && "the first admin's name"
+      ? (!isTextOk('name', adminFirstName) || !isTextOk('name', adminLastName)) && "the first admin's name"
       : !adminUser && 'the person to attach',
-    adminMode === 'invite' && !adminEmail && "the first admin's email",
+    adminMode === 'invite' && !adminEmail.trim() && "the first admin's email",
     adminMode === 'invite' && adminEmailError && 'a valid admin email',
   ].filter(Boolean) as string[]
 
   const kindNoun = isInstitute ? 'Institute' : 'Consultancy'
+  const server = useServerFieldErrors(createConsultancy.error, {
+    name,
+    admin_first_name: adminFirstName,
+    admin_last_name: adminLastName,
+    admin_email: adminEmail,
+  })
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -174,7 +199,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
     }
     createConsultancy.mutate(
       {
-        name,
+        name: cleanText(name),
         city,
         country: country || undefined,
         tier,
@@ -182,14 +207,18 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         // Never sent for a consultancy — one carrying a college_id is refused 400. Omitted for an
         // unlinked institute too: `college_id: ''` is not "no college", it is an unknown one.
         ...(isInstitute && collegeId ? { college_id: collegeId } : {}),
-        branch_address: branchAddress,
+        branch_address: cleanText(branchAddress),
         // Absent, not null, when it was left empty — the server reads a missing `branch_city` as
         // "use the account's own city" and an explicit null as "no city at all".
         ...headOfficeBranchFields(headOffice),
         // Exactly one form. Empty strings would still read as "the invite form was used" to the
         // server's `Boolean(admin_first_name || ...)` check, so the unused half is omitted whole.
         ...(adminMode === 'invite'
-          ? { admin_first_name: adminFirstName, admin_last_name: adminLastName, admin_email: adminEmail }
+          ? {
+              admin_first_name: cleanName(adminFirstName),
+              admin_last_name: cleanName(adminLastName),
+              admin_email: normaliseEmail(adminEmail),
+            }
           : { admin_user_id: adminUser!.id }),
         file_number_prefix: effectivePrefix || undefined,
         // Omitted rather than sent blank: no date here means "give it the trial", which is the
@@ -207,7 +236,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           // existing login was attached and no invitation was needed.
           showToast(
             adminMode === 'invite'
-              ? `${name} created. An invitation was sent to ${adminEmail}.`
+              ? `${cleanText(name)} created. An invitation was sent to ${normaliseEmail(adminEmail)}.`
               : `${name} created. ${adminUser?.name ?? 'The chosen person'} is now its admin; no invitation was needed.`,
           )
         },
@@ -222,7 +251,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       widthRem={34}
       footer={
         <>
-          {createConsultancy.isError ? (
+          {createConsultancy.isError && !server.allBesideFields ? (
             <p className="mr-auto self-center text-body-sm text-error">{createConsultancy.error.message}</p>
           ) : attempted && missing.length > 0 ? (
             <p className="mr-auto self-center text-body-sm text-error">Still needed: {missing.join(', ')}.</p>
@@ -284,6 +313,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-md">
           <p className="text-body-sm font-medium text-text-primary">Company Details</p>
           <TextField
+            kind="title"
             label={`${kindNoun} name`}
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -295,15 +325,12 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
               value={effectivePrefix}
               onChange={(e) => {
                 setFilePrefixTouched(true)
-                setFilePrefix(
-                  e.target.value
-                    .toUpperCase()
-                    .replace(/[^A-Z]/g, '')
-                    .slice(0, 3),
-                )
+                setFilePrefix(cleanFilePrefix(e.target.value))
+                setPrefixDropped(droppedFromPrefix(e.target.value))
               }}
-              maxLength={3}
+              maxLength={FILE_PREFIX_LENGTH}
               className="uppercase"
+              error={prefixDropped ? FILE_PREFIX_LETTERS_ONLY : prefixNeedsTyping ? FILE_PREFIX_NEEDS_TYPING : undefined}
             />
             <p className="text-caption text-text-secondary">
               Prefixes every client file number this {kindNoun.toLowerCase()} generates, e.g. "
@@ -409,6 +436,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           />
           <div className="flex flex-col gap-xs">
             <TextField
+              kind="address"
               label="Street address"
               value={branchAddress}
               onChange={(e) => setBranchAddress(e.target.value)}
@@ -443,18 +471,26 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             <>
               <div className="grid grid-cols-2 gap-md">
                 <TextField
+                  kind="name"
                   label="First name"
                   value={adminFirstName}
                   onChange={(e) => setAdminFirstName(e.target.value)}
+                  error={server.messageFor('admin_first_name')}
                 />
-                <TextField label="Last name" value={adminLastName} onChange={(e) => setAdminLastName(e.target.value)} />
+                <TextField
+                  kind="name"
+                  label="Last name"
+                  value={adminLastName}
+                  onChange={(e) => setAdminLastName(e.target.value)}
+                  error={server.messageFor('admin_last_name')}
+                />
               </div>
               <TextField
                 label="Email"
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
-                error={adminEmailError}
+                error={adminEmailError ?? server.messageFor('admin_email')}
               />
             </>
           ) : (
@@ -521,6 +557,7 @@ function ExistingUserPicker({
   return (
     <div className="flex flex-col gap-xs">
       <TextField
+        kind="search"
         label="Search by name or email"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

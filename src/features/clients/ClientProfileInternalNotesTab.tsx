@@ -14,9 +14,11 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAddInternalNote, useInternalNotes } from '@/queries/clients'
 import { chronologicalPages } from '@/lib/pagination'
 import { formatDateTime, relativeTime } from '@/lib/time'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { firstChar } from '@/lib/validation'
 
 function initials(first?: string | null, last?: string | null) {
-  return `${(first ?? '').charAt(0)}${(last ?? '').charAt(0)}`.toUpperCase() || '?'
+  return `${firstChar(first ?? '')}${firstChar(last ?? '')}` || '?'
 }
 
 export function InternalNotesTab({ clientId }: { clientId: string }) {
@@ -117,7 +119,7 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
       </div>
 
       <form onSubmit={submit} className="flex shrink-0 items-end gap-sm border-t border-border px-lg py-md">
-        <textarea
+        <LimitedTextArea kind="note"
           ref={textareaRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

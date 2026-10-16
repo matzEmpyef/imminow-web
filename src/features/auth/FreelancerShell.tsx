@@ -5,6 +5,7 @@ import { BRAND_LOGO } from '@/lib/brand'
 import { useMeUser } from '@/lib/me'
 import { useLogout } from '@/lib/useLogout'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
+import { firstChar } from '@/lib/validation'
 
 /**
  * A small dropdown of who's signed in, opening onto "My Account" and "Sign out" — the same two
@@ -45,7 +46,7 @@ function AccountMenu() {
         className="flex h-10 items-center gap-sm rounded-md px-xs hover:bg-background"
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-body-sm font-medium text-primary">
-          {user ? user.first_name.charAt(0).toUpperCase() : '?'}
+          {user ? firstChar(user.first_name) : '?'}
         </span>
         {/* Narrow screens condense to the avatar alone (spec item 13) — the name/email pair is the
             first thing to go, the icon stays so the control is still findable. */}

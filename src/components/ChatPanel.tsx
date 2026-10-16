@@ -10,6 +10,8 @@ import { formatDate, formatDayLabel, formatTime, isSameCalendarDay } from '@/lib
 import { formatMoney } from '@/lib/money'
 import { emptyThreadText } from '@/lib/closedThread'
 import type { components } from '@/api/schema'
+import { CHAT_MAX, charLength, clipChars, stripControlChars, firstChar } from '@/lib/validation'
+import { CharCounter } from '@/components/CharCounter'
 
 type Course = components['schemas']['Course']
 type College = components['schemas']['College']
@@ -298,7 +300,7 @@ export function ChatPanel({
     >
       <div className="flex shrink-0 items-center gap-sm border-b border-border px-md py-sm">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-body font-semibold text-primary">
-          {name.charAt(0).toUpperCase()}
+          {firstChar(name)}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-semibold text-text-primary">{name}</p>
@@ -576,7 +578,7 @@ export function ChatPanel({
                 send button uses, so nothing needs a second code path. */}
             <textarea
               value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
+              onChange={(e) => onDraftChange(clipChars(stripControlChars(e.target.value), CHAT_MAX))}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter' || e.shiftKey) return
                 // Leave IME composition alone — mid-composition Enter commits the candidate.
@@ -597,7 +599,10 @@ export function ChatPanel({
               <ArrowUp className="h-5 w-5" />
             </button>
           </div>
-          <p className="text-caption text-text-secondary">Enter to send · Shift+Enter for a new line</p>
+          <div className="flex items-start">
+            <p className="text-caption text-text-secondary">Enter to send · Shift+Enter for a new line</p>
+            <CharCounter count={charLength(draft)} limit={CHAT_MAX} />
+          </div>
         </form>
       )}
     </div>

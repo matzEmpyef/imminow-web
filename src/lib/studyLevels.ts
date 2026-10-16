@@ -99,3 +99,26 @@ export const EMPTY_LADDER: LevelLadder = {
   entryQualifications: [],
   isLoading: false,
 }
+
+/**
+ * The stored code of a study level, suggested from its label: lower-case letters and digits with
+ * underscores between. Accents are folded ("Diplôme" gives "diplome"). A label in another script
+ * (Hindi, Tamil…) has none of those, so nothing is suggested and the admin types a code (see
+ * `LEVEL_CODE_NEEDS_TYPING`).
+ */
+export function slugifyLevel(label: string): string {
+  return label
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+/** What is kept of a code as it is typed. */
+export function cleanLevelCode(typed: string): string {
+  return slugifyLevel(typed)
+}
+
+export const LEVEL_CODE_NEEDS_TYPING =
+  'This label has no letters A to Z or digits, so no code can be suggested. Type a code of your own: lower-case letters, digits and underscores.'
