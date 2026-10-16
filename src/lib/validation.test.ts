@@ -43,7 +43,10 @@ import {
   phoneError,
   phoneToSend,
   readPhone,
+  searchTerm,
   stripControlChars,
+  nameFits,
+  withSafeSearch,
   urlError,
 } from './validation'
 
@@ -381,5 +384,33 @@ describe('field kinds', () => {
     expect(fieldKindError('email', 'x')).toBe(EMAIL_ERROR)
     expect(fieldKindError('percent', '101')).toBe(PERCENT_SENTENCE)
     expect(fieldKindError('name', '')).toBeUndefined()
+  })
+})
+
+describe('search terms', () => {
+  it('sends nothing below two characters, trims, and cuts at 100', () => {
+    expect(searchTerm('')).toBeUndefined()
+    expect(searchTerm(' a ')).toBeUndefined()
+    expect(searchTerm('  ab ')).toBe('ab')
+    expect(searchTerm('x'.repeat(150))).toHaveLength(100)
+    expect(searchTerm('😀')).toBeUndefined()
+    expect(searchTerm('😀😀')).toBe('😀😀')
+  })
+
+  it('leaves the other query parameters alone and drops a short search', () => {
+    expect(withSafeSearch({ limit: 20, search: 'a' })).toEqual({ limit: 20 })
+    expect(withSafeSearch({ limit: 20, search: ' abc ' })).toEqual({ limit: 20, search: 'abc' })
+    expect(withSafeSearch({ limit: 20 })).toEqual({ limit: 20 })
+    expect(withSafeSearch(undefined)).toBeUndefined()
+  })
+})
+
+describe('a name in a single full-name box', () => {
+  it('may run to 200 characters and follows the name rule', () => {
+    expect(nameFits('a'.repeat(200))).toBe(true)
+    expect(nameFits('a'.repeat(201))).toBe(false)
+    expect(nameFits('सुनीता शर्मा')).toBe(true)
+    expect(nameFits('Sunita 2')).toBe(false)
+    expect(nameFits('   ')).toBe(false)
   })
 })

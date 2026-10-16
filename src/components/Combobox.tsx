@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FocusEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
+import { LABEL_MAX } from '@/lib/validation'
 
 interface ComboboxProps {
   label: string
@@ -100,7 +101,7 @@ export function Combobox({ label, value, onChange, options, required, commitWhil
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
-        <input
+        <input maxLength={LABEL_MAX}
           id={fieldId}
           value={draft}
           onChange={(e) => {

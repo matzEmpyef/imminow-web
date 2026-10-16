@@ -34,6 +34,12 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement>, FieldKin
   kind?: FieldKind
   /** Characters allowed (code points), when the kind's own limit is not the right one. */
   limit?: number
+  /**
+   * Turn off the sentence the field says for itself once it is left (default on). For a form that
+   * judges the value on its own terms, for example one that does not flag a number saved before
+   * the rule existed until somebody edits it.
+   */
+  autoCheck?: boolean
 }
 
 // ui-ux-design-web.md Section 5: pill-shaped field, 1px Border at rest, 2px Primary when
@@ -75,6 +81,7 @@ export function TextField({
   type,
   kind: kindProp,
   limit: limitProp,
+  autoCheck = true,
   phoneRegion,
   codeRange,
   countMin,
@@ -152,7 +159,7 @@ export function TextField({
   const isNumber = type === 'number'
   // What is typed, judged once the field has been left, unless the form has its own sentence.
   const autoError =
-    touched && text !== ''
+    autoCheck && touched && text !== ''
       ? isDate
         ? dateError(text)
         : isNumber

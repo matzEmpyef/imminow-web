@@ -3,6 +3,7 @@ import { ExternalLink, FileText, Link2, Loader2, Upload } from 'lucide-react'
 import { useSaveStepResponses, useUploadStepFile } from '@/queries/plans'
 import { TextComponentContent } from './PlanComponentBlock'
 import type { components } from '@/api/schema'
+import { useUploadCheck } from '@/lib/useUploadCheck'
 
 type Component = components['schemas']['Component']
 type Step = components['schemas']['Step']
@@ -31,6 +32,7 @@ export function ComponentFill({
 }) {
   const save = useSaveStepResponses(clientId)
   const uploadFile = useUploadStepFile(clientId)
+  const uploadCheck = useUploadCheck('document')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const payload = (component.payload ?? {}) as Record<string, unknown>
@@ -148,6 +150,10 @@ export function ComponentFill({
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (!file) return
+                    if (!uploadCheck.check(file)) {
+                      e.target.value = ''
+                      return
+                    }
                     uploadFile.mutate(
                       { stepId: step.id, file },
                       {
@@ -174,7 +180,8 @@ export function ComponentFill({
               </>
             )}
           </div>
-          {(uploadFile.error ?? save.error) && (
+          {uploadCheck.problem && <p className="mt-xs text-caption text-error">{uploadCheck.problem}</p>}
+          {!uploadCheck.problem && (uploadFile.error ?? save.error) && (
             <p className="mt-xs text-caption text-error">{(uploadFile.error ?? save.error)?.message}</p>
           )}
         </div>

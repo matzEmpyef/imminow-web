@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 export interface StepDraft {
   title: string
@@ -61,10 +62,10 @@ export function AddStepModal({
       }
     >
       <form id="add-step-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="step-description">What happens in this step</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="step-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -77,6 +78,9 @@ export function AddStepModal({
           </p>
         </div>
         <TextField
+          kind="count"
+          countMin={1}
+          countMax={3650}
           label="Expected duration (days)"
           type="number"
           value={duration}

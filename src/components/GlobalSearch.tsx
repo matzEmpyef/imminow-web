@@ -4,6 +4,7 @@ import { useLeads } from '@/queries/leads'
 import { convertedLeadOf } from '@/lib/servedCaseFields'
 import { useClients } from '@/queries/clients'
 import { useDebouncedValue } from '@/lib/useDebounce'
+import { SEARCH_MAX } from '@/lib/validation'
 
 const MIN_QUERY_LENGTH = 2
 const MAX_RESULTS_PER_GROUP = 5
@@ -120,7 +121,7 @@ export function GlobalSearch() {
         >
           <path d="M13.61 12.2a6.5 6.5 0 1 0-1.41 1.41l3.6 3.6a1 1 0 0 0 1.4-1.42l-3.59-3.59ZM3.5 8.5a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z" />
         </svg>
-        <input
+        <input maxLength={SEARCH_MAX}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)

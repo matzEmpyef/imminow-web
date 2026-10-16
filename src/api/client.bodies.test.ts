@@ -33,6 +33,23 @@ describe('what the request client sends', () => {
     expect(await sentBody()).toEqual({ email: 'asha@example.com' })
   })
 
+  it('sends no search below 2 characters, so the list shows in full', async () => {
+    fetchMock.mockResolvedValueOnce(ok())
+    await api.GET('/phonebook', { params: { query: { search: ' a ', limit: 20 } } })
+    const url = new URL((fetchMock.mock.calls[0][0] as Request).url)
+    expect(url.searchParams.has('search')).toBe(false)
+    expect(url.searchParams.get('limit')).toBe('20')
+  })
+
+  it('sends a search of 2 characters, trimmed, and cuts one past 100', async () => {
+    fetchMock.mockResolvedValueOnce(ok())
+    await api.GET('/phonebook', { params: { query: { search: '  ab ' } } })
+    expect(new URL((fetchMock.mock.calls[0][0] as Request).url).searchParams.get('search')).toBe('ab')
+    fetchMock.mockResolvedValueOnce(ok())
+    await api.GET('/phonebook', { params: { query: { search: 'x'.repeat(150) } } })
+    expect(new URL((fetchMock.mock.calls[1][0] as Request).url).searchParams.get('search')).toHaveLength(100)
+  })
+
   it('leaves a password exactly as it was typed', async () => {
     fetchMock.mockResolvedValueOnce(ok())
     await api.POST('/auth/login', { body: { email: ' a@b.co ', password: '  spaced out  ' } })

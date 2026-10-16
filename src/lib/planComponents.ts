@@ -16,20 +16,6 @@ export const COMPONENT_TYPE_LABELS: Record<ComponentType, string> = {
   weblink: 'Web Link',
 }
 
-/**
- * A Web Link's address must be a full http(s) URL (2026-09-10). The app hands it straight to the
- * phone's browser, so anything else — a bare "www.site.com", or a `javascript:` URL — is refused
- * here and again by the server.
- */
-export function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value.trim())
-    return url.protocol === 'https:' || url.protocol === 'http:'
-  } catch {
-    return false
-  }
-}
-
 // Lives here rather than in PlanComponentBlock.tsx — a plain module export mixed into a file
 // that otherwise only exports components trips oxlint's react-refresh rule.
 export const COMPONENT_TYPE_ICONS: Record<ComponentType, typeof Type> = {

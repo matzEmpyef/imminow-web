@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
+import { SEARCH_MAX } from '@/lib/validation'
 
 interface FilterMultiSelectProps {
   /** The dimension being filtered, e.g. "Tag". Shown on the trigger and announced as its name. */
@@ -143,7 +144,7 @@ export function FilterMultiSelect({ label, options, selected, onChange, renderOp
                   wrapper so focusing the input highlights the whole field, icon included. */}
               <div className="flex h-9 items-center gap-xs rounded-md border border-border bg-background px-sm focus-within:border-primary">
                 <Search className="h-4 w-4 shrink-0 text-text-secondary" aria-hidden />
-                <input
+                <input maxLength={SEARCH_MAX}
                   ref={focusOnMount}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}

@@ -147,7 +147,8 @@ export function OneTimeCodeDialog({
           required
           inputMode="numeric"
           autoComplete="one-time-code"
-          maxLength={codeLength}
+          // Room for the spaces and dashes in a pasted "123 456"; the change handler keeps six digits.
+          limit={32}
           placeholder={'0'.repeat(codeLength)}
           value={code}
           onChange={(e) => {

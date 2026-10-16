@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useDebouncedValue } from '@/lib/useDebounce'
 import { useServerSearch, type ServerSearchSource } from '@/lib/useServerSearch'
 import type { SearchSelectOption } from './SearchSelect'
+import { SEARCH_MAX } from '@/lib/validation'
 
 interface ServerSearchSelectProps<T> {
   source: ServerSearchSource<T>
@@ -166,7 +167,7 @@ export function ServerSearchSelect<T>({
 
   return (
     <div ref={containerRef} className="relative">
-      <input
+      <input maxLength={SEARCH_MAX}
         ref={inputRef}
         id={id}
         role="combobox"

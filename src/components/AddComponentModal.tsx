@@ -10,11 +10,11 @@ import { useDocumentTypes } from '@/queries/studentDocuments'
 import {
   COMPONENT_TYPES,
   COMPONENT_TYPE_LABELS,
-  isHttpUrl,
   newComponentId,
   type ComponentInput,
   type ComponentType,
 } from '@/lib/planComponents'
+import { isValidHttpsUrl, URL_SENTENCE } from '@/lib/validation'
 
 function readPayload(component: ComponentInput | undefined) {
   return (component?.payload ?? {}) as Record<string, unknown>
@@ -117,6 +117,7 @@ function AddRow({
   return (
     <div className="flex items-center gap-sm">
       <TextField
+        kind="label"
         label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -199,7 +200,7 @@ export function AddComponentModal({
     setOptionDraft('')
   }
 
-  const urlValid = isHttpUrl(draft.url)
+  const urlValid = isValidHttpsUrl(draft.url)
 
   // NO LABEL for a catalog document (user, 2026-09-10: "Why we need label for File Upload?") —
   // the document's own name says what is being collected, and becomes the label on save. "Other"
@@ -299,7 +300,7 @@ export function AddComponentModal({
         </SelectField>
 
         {type !== 'text' && type !== 'file_upload' && (
-          <TextField label="Label" value={draft.label} onChange={(e) => update({ label: e.target.value })} />
+          <TextField kind="label" label="Label" value={draft.label} onChange={(e) => update({ label: e.target.value })} />
         )}
 
         {type === 'text' && (
@@ -451,6 +452,7 @@ export function AddComponentModal({
             </SelectField>
             {draft.documentTypeId === OTHER_DOCUMENT && (
               <TextField
+                kind="label"
                 label="Document name"
                 required
                 value={draft.label}
@@ -460,6 +462,7 @@ export function AddComponentModal({
             )}
             {chosenDocument?.cardinality === 'instance' && (
               <TextField
+                kind="label"
                 label="Which one? (optional)"
                 value={draft.documentDetail}
                 onChange={(e) => update({ documentDetail: e.target.value })}
@@ -482,9 +485,10 @@ export function AddComponentModal({
               value={draft.url}
               onChange={(e) => update({ url: e.target.value })}
               placeholder="https://"
-              error={draft.url.trim() && !urlValid ? 'Enter a full address starting with https:// or http://' : undefined}
+              error={draft.url.trim() && !urlValid ? URL_SENTENCE : undefined}
             />
             <TextField
+              kind="label"
               label="Button text"
               value={draft.buttonText}
               onChange={(e) => update({ buttonText: e.target.value })}

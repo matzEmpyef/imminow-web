@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
+import { SEARCH_MAX } from '@/lib/validation'
 
 export interface SearchSelectOption {
   id: string
@@ -107,7 +108,7 @@ export function SearchSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      <input
+      <input maxLength={SEARCH_MAX}
         ref={inputRef}
         id={id}
         aria-label={ariaLabel}

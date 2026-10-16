@@ -115,7 +115,7 @@ export function GlobalChatDrawer() {
         onScroll={handleScroll}
         stickyContent={
           <div className="flex flex-col gap-sm">
-            <TextField label="Search conversations" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <TextField kind="search" label="Search conversations" value={query} onChange={(e) => setQuery(e.target.value)} />
             {/* A switch, not a filter chip: it widens the list (see FilterChip's own note). */}
             <label htmlFor="chats-show-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
               <Toggle id="chats-show-closed" size="sm" checked={showClosed} onChange={setShowClosed} label="Show closed" />

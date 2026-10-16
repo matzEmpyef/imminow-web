@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
+import { SEARCH_MAX } from '@/lib/validation'
 
 interface MultiSelectProps {
   label: string
@@ -120,7 +121,7 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
             </button>
           </span>
         ))}
-        <input
+        <input maxLength={SEARCH_MAX}
           ref={inputRef}
           id={inputId}
           value={search}

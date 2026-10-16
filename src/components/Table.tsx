@@ -3,6 +3,7 @@ import { ErrorReference } from './ErrorReference'
 import { Button } from './Button'
 import { useDebouncedValue } from '@/lib/useDebounce'
 import { countOf } from '@/lib/counts'
+import { SEARCH_MAX } from '@/lib/validation'
 
 export interface TableColumn<T> {
   key: string
@@ -156,7 +157,7 @@ export function Table<T>({
         <div className="flex flex-wrap items-center gap-sm">
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-xs">
             {search && (
-              <input
+              <input maxLength={SEARCH_MAX}
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
                 placeholder={search.placeholder ?? 'Search…'}
