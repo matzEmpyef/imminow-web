@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { browserTimezone, nowWallClock, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { cleanPrizes, emptyPrize, prizeListError, type Event, type PositionPrize } from './quizShared'
+import { countError, EVENT_POINTS_MAX } from '@/lib/validation'
 
 // Everything QuizSettingsModal's form needs — state, the handlers that mutate it, validity and
 // the request body — as ONE typed object (Phase 3 plan, Tier B3, 2026-09-03). Same treatment
@@ -165,7 +166,10 @@ export function useQuizForm(editingEvent?: Event, scheduleLocked = false): QuizF
     Boolean(startsAt) &&
     questionsPerAttempt != null &&
     questionsPerAttempt >= 1 &&
-    (timeLimitMinutes == null || timeLimitMinutes >= 1) &&
+    questionsPerAttempt <= 200 &&
+    (timeLimitMinutes == null || (timeLimitMinutes >= 1 && timeLimitMinutes <= 1440)) &&
+    // Participation points are a whole number, 1,00,000 at most (decision 154, ruling 8).
+    (participationPoints == null || !countError(participationPoints, { max: EVENT_POINTS_MAX })) &&
     !startError &&
     !endError &&
     !prizeError

@@ -20,6 +20,8 @@ import { useCursorPagination } from '@/lib/pagination'
 import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isValidHttpsUrl, URL_SENTENCE, dateRangeError } from '@/lib/validation'
 
 type JobListing = components['schemas']['JobListing']
 type JobType = NonNullable<JobListing['job_type']>
@@ -93,13 +95,15 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
     ? undefined
     : !applyUrl.trim()
       ? 'Apply URL is required.'
-      : !applyUrl.startsWith('https://')
-        ? 'Must start with https://'
+      : !isValidHttpsUrl(applyUrl)
+        ? URL_SENTENCE
         : undefined
   // The server refuses a country-less non-remote job 422 (product owner, 2026-09-20). Checked here
   // too, and the Save is blocked on it, so the admin learns the rule while filling the field in
   // rather than after losing a round trip — the server's message is still surfaced in the footer
   // if a case this form doesn't know about ever comes back.
+  // A listing cannot end before it starts (decision 154, ruling 7).
+  const activeRangeError = dateRangeError(activeFrom, activeTo)
   const countryRequired = workMode !== 'remote'
   const countryError = attempted && countryRequired && !country ? 'Required unless the work mode is Remote.' : undefined
   // A category is mandatory (owner's ruling 2026-10-10). A listing filed before that, with none,
@@ -109,7 +113,8 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
     title.trim() &&
       company.trim() &&
       applyUrl.trim() &&
-      applyUrl.startsWith('https://') &&
+      isValidHttpsUrl(applyUrl) &&
+      !activeRangeError &&
       (!countryRequired || country) &&
       !categoryMissing,
   )
@@ -153,7 +158,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
       category,
       job_type: jobType,
       description,
-      apply_url: applyUrl,
+      apply_url: applyUrl.trim(),
       salary_range: salaryRange || null,
       work_mode: workMode,
       experience_level: experienceLevel || null,
@@ -201,9 +206,10 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
           "Please select an item in the list", which cannot express "unless the work mode is
           Remote". The save is still blocked; it is blocked by this form, saying why. */}
       <form id="job-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-md">
-        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={titleError} />
+        <TextField kind="title" label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={titleError} />
         <div className="grid grid-cols-2 gap-sm">
           <TextField
+            kind="label"
             label="Company"
             required
             value={company}
@@ -278,7 +284,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
           />
           <StateSelect label="State / province" country={country} value={provinceState} onChange={setProvinceState} />
         </div>
-        <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+        <TextField kind="label" label="City" value={city} onChange={(e) => setCity(e.target.value)} />
         <p className="-mt-sm text-caption text-text-secondary">
           {countryRequired
             ? 'A country is required unless the work mode is Remote. Students see these as one line — “Bengaluru, Karnataka, India”.'
@@ -286,7 +292,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
         </p>
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="job-description">Description</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="job-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -296,6 +302,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
         </div>
         <div className="flex flex-col gap-xs">
           <TextField
+            kind="url"
             label="Apply URL"
             required
             value={applyUrl}
@@ -305,8 +312,9 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
           <p className="text-caption text-text-secondary">Must start with https://</p>
         </div>
         <div className="grid grid-cols-2 items-end gap-sm">
-          <TextField label="Salary range" value={salaryRange ?? ''} onChange={(e) => setSalaryRange(e.target.value)} />
+          <TextField kind="label" label="Salary range" value={salaryRange ?? ''} onChange={(e) => setSalaryRange(e.target.value)} />
           <TextField
+            kind="label"
             label="Experience level"
             value={experienceLevel ?? ''}
             onChange={(e) => setExperienceLevel(e.target.value)}
@@ -337,6 +345,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
           )}
           <div className="flex items-end gap-sm">
             <TextField
+              kind="label"
               label="Skill"
               value={skillDraft}
               onChange={(e) => setSkillDraft(e.target.value)}
@@ -365,6 +374,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
             type="date"
             value={activeTo ?? ''}
             onChange={(e) => setActiveTo(e.target.value)}
+            error={activeRangeError}
           />
         </div>
         <p className="-mt-sm text-caption text-text-secondary">

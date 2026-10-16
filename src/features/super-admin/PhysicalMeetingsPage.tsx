@@ -23,6 +23,8 @@ import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
 import { SelectField } from '@/components/SelectField'
+import { VENUE_CODE_LENGTH, EVENT_POINTS_MAX, countError, codeError } from '@/lib/validation'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 type Event = components['schemas']['Event']
 
@@ -90,6 +92,8 @@ function MeetingFormModal({
   // "Ends at" made required (review M16, 2026-09-12) — matching Webinar's own required field and
   // validation message, rather than the two forms disagreeing about whether an event needs an end.
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
+  // Capacity up to 10,00,000 and event points up to 1,00,000, whole numbers (decision 154, ruling 8).
+  const countsValid = !countError(capacity) && !countError(pointsOverride, { max: EVENT_POINTS_MAX })
   // TIME RULES (assumptions audit C16, approved 2026-09-19), mirroring the server's own: nothing
   // is created in the past; once a meeting has started its start is fixed and its end can only be
   // extended. Compared as wall clocks in the VENUE's zone, which is the clock these fields are
@@ -101,7 +105,14 @@ function MeetingFormModal({
   const startInPast = !isEditing && Boolean(startsAt) && startsAt < nowInZone
   const endInPast = Boolean(endsAt) && endsAt < nowInZone
   const canSubmit =
-    Boolean(title) && Boolean(startsAt) && Boolean(endsAt) && !endBeforeStart && !startInPast && !endInPast
+    Boolean(title) &&
+    Boolean(startsAt) &&
+    Boolean(endsAt) &&
+    !endBeforeStart &&
+    !startInPast &&
+    !endInPast &&
+    countsValid &&
+    !codeError(venueCode, VENUE_CODE_LENGTH)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -165,10 +176,10 @@ function MeetingFormModal({
             update the dates below before saving.
           </p>
         )}
-        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="meeting-description">Description</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="meeting-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -230,9 +241,11 @@ function MeetingFormModal({
         <p className="mt-xs text-caption text-text-secondary">
           Attendees see this time on the venue&apos;s clock — it is never converted to theirs.
         </p>
-        <TextField label="Venue address" value={venueAddress} onChange={(e) => setVenueAddress(e.target.value)} />
+        <TextField kind="address" label="Venue address" value={venueAddress} onChange={(e) => setVenueAddress(e.target.value)} />
         <div>
           <TextField
+            kind="code"
+            codeRange={VENUE_CODE_LENGTH}
             label="Attendance code"
             value={venueCode}
             onChange={(e) => setVenueCode(e.target.value.toUpperCase())}
@@ -246,8 +259,10 @@ function MeetingFormModal({
           </p>
         </div>
         <div className="grid grid-cols-2 gap-sm">
-          <TextField label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+          <TextField kind="count" label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           <TextField
+            kind="count"
+            countMax={EVENT_POINTS_MAX}
             label="Sentpo points"
             type="number"
             value={pointsOverride}

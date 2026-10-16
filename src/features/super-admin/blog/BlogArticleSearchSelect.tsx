@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import { useBlogArticleSearch } from '@/queries/blogArticles'
 import { useDebouncedValue } from '@/lib/useDebounce'
+import { SEARCH_MAX } from '@/lib/validation'
 
 interface BlogArticleSearchSelectProps {
   value: string
@@ -74,6 +75,7 @@ export function BlogArticleSearchSelect({ value, onChange, id, placeholder = 'Se
       <input
         ref={inputRef}
         id={id}
+        maxLength={SEARCH_MAX}
         value={open ? query : (selected?.title ?? '')}
         onChange={(e) => {
           setQuery(e.target.value)

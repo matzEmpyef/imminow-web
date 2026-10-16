@@ -312,7 +312,7 @@ describe('excluding a rating', () => {
   it("mirrors the server's own missing-reason refusal on the field", async () => {
     mockedPatch.mockResolvedValueOnce(refused(400, 'validation_failed', 'A reason is required.', { reason: 'required' }))
     const confirm = await openConfirm()
-    fireEvent.change(within(confirm).getByLabelText(/Reason/), { target: { value: 'x' } })
+    fireEvent.change(within(confirm).getByLabelText(/Reason/), { target: { value: 'Duplicate account.' } })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Exclude from score' }))
     expect(await within(confirm).findByText('Add a reason.')).toBeInTheDocument()
     expect(within(confirm).queryByRole('alert')).not.toBeInTheDocument()

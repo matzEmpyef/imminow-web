@@ -129,6 +129,7 @@ export function LeadRepliesTab() {
       <div className="flex flex-col gap-md">
         {FIELDS.map((f) => (
           <TextField
+            kind="count"
             key={f.key}
             label={f.label}
             type="number"

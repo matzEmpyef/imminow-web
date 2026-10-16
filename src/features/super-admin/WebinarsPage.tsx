@@ -24,11 +24,11 @@ import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
+import { EVENT_POINTS_MAX, isValidHttpsUrl, URL_SENTENCE, countError } from '@/lib/validation'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 type Event = components['schemas']['Event']
 type MeetingPlatform = NonNullable<Event['meeting_platform']>
-
-const MEETING_URL_PATTERN = /^https?:\/\/\S+$/i
 
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." "Ends at" is required (2026-08-15 follow-up, "we need end time, after that link should
@@ -92,8 +92,10 @@ function WebinarFormModal({
   const countries = useCountries()
 
   const mutation = isEditing ? updateEvent : createEvent
-  const meetingUrlValid = MEETING_URL_PATTERN.test(meetingUrl.trim())
+  const meetingUrlValid = isValidHttpsUrl(meetingUrl)
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
+  // Capacity up to 10,00,000 and event points up to 1,00,000, whole numbers (decision 154, ruling 8).
+  const countsValid = !countError(capacity) && !countError(pointsOverride, { max: EVENT_POINTS_MAX })
   // TIME RULES (assumptions audit C16, approved 2026-09-19), the same three the server enforces
   // and the same three the Physical Meeting form applies: nothing is created in the past; once a
   // webinar has started its start is fixed and its end can only be extended. Compared as wall
@@ -111,6 +113,7 @@ function WebinarFormModal({
     !endBeforeStart &&
     !startInPast &&
     !endInPast &&
+    countsValid &&
     meetingUrlValid
 
   function handleSubmit(e: FormEvent) {
@@ -123,7 +126,7 @@ function WebinarFormModal({
       ends_at: wallClockToUtcIso(endsAt, timezone),
       timezone,
       capacity: capacity ? Number(capacity) : null,
-      meeting_url: meetingUrl || null,
+      meeting_url: meetingUrl.trim() || null,
       meeting_platform: meetingPlatform,
       points_override: pointsOverride ? Number(pointsOverride) : null,
       // Explicit null, not undefined, so clearing the cover on an edit actually removes it.
@@ -174,10 +177,10 @@ function WebinarFormModal({
             dates below before saving.
           </p>
         )}
-        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="webinar-description">Description</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="webinar-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -242,12 +245,13 @@ function WebinarFormModal({
           Join only redirects to the meeting while this window is open.
         </p>
         <TextField
+          kind="url"
           label="Meeting URL"
           required
           placeholder="https://…"
           value={meetingUrl}
           onChange={(e) => setMeetingUrl(e.target.value)}
-          error={meetingUrl && !meetingUrlValid ? 'Must start with http:// or https://.' : undefined}
+          error={meetingUrl && !meetingUrlValid ? URL_SENTENCE : undefined}
         />
         <p className="-mt-sm text-caption text-text-secondary">
           Required — must start with http:// or https://. Students Join through this link while the window above is
@@ -266,8 +270,10 @@ function WebinarFormModal({
           <option value="other">Other</option>
         </SelectField>
         <div className="grid grid-cols-2 gap-sm">
-          <TextField label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+          <TextField kind="count" label="Capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           <TextField
+            kind="count"
+            countMax={EVENT_POINTS_MAX}
             label="Sentpo points"
             type="number"
             value={pointsOverride}

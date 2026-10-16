@@ -137,6 +137,7 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
       <div className="flex flex-col gap-md">
         <div className="flex flex-col gap-xs">
           <TextField
+            kind="title"
             label="Title"
             required
             maxLength={60}

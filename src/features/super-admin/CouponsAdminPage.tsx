@@ -29,6 +29,8 @@ import { showToast } from '@/lib/toast'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { countError, isTextOk } from '@/lib/validation'
 
 type Coupon = components['schemas']['Coupon']
 type RelevanceScope = NonNullable<Coupon['relevance_scope']>
@@ -122,10 +124,12 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
   // still SENT on create, because the create refuses a body with no `relevance_scope` at all.
   const effectiveScope: RelevanceScope | '' = isOnlinePartner ? 'country' : relevanceScope
   const limitValue = Number(perStudentLimit)
-  const limitAnswered = perStudentLimit.trim() !== '' && Number.isInteger(limitValue) && limitValue >= 1
+  const limitAnswered = perStudentLimit.trim() !== '' && !countError(perStudentLimit, { min: 1 })
+  // Point cost and stock are whole numbers up to 10,00,000 (decision 154, ruling 8).
+  const countsValid = !countError(pointCost, { min: 1 }) && (isOnlinePartner || !countError(stock))
   // Only a CREATE is blocked: the two fields are required on `POST /coupons`, while a PATCH
   // carrying neither is a perfectly ordinary edit (a rename, a new thumbnail).
-  const missingRequired = !isEditing && (!effectiveScope || !limitAnswered)
+  const missingRequired = (!isEditing && (!effectiveScope || !limitAnswered)) || !countsValid || !isTextOk('label', offer, { optional: true })
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -213,7 +217,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             puts the label in its own row above a shorter box — without `items-end` the two
             controls' boxes don't share a bottom edge. */}
         <div className="grid grid-cols-2 items-end gap-sm">
-          <TextField label="Offer (e.g. 10% off)" required value={offer} onChange={(e) => setOffer(e.target.value)} />
+          <TextField kind="label" label="Offer (e.g. 10% off)" required value={offer} onChange={(e) => setOffer(e.target.value)} />
           <SelectField
             label="Type"
             required
@@ -229,7 +233,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
         </div>
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="coupon-description">Description</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="coupon-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -239,7 +243,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
         </div>
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="coupon-terms">Terms &amp; conditions</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="coupon-terms"
             value={terms}
             onChange={(e) => setTerms(e.target.value)}
@@ -255,6 +259,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
         />
         <div className={`grid items-end gap-sm ${isOnlinePartner ? 'grid-cols-2' : 'grid-cols-3'}`}>
           <TextField
+            kind="count"
+            countMin={1}
             label="Point cost"
             type="number"
             required
@@ -263,6 +269,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
           />
           {!isOnlinePartner && (
             <TextField
+              kind="count"
               label="Total stock"
               type="number"
               required
@@ -288,6 +295,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             2026-09-19). Required on create. A new coupon opens on 1 (owner, 2026-10-07): the
             tightest value, so a limit nobody thought about is still a safe one. */}
         <TextField
+          kind="count"
+          countMin={1}
           label="Claims per student"
           type="number"
           required
@@ -445,7 +454,7 @@ function VoucherCodesModal({ coupon, onClose }: { coupon: Coupon; onClose: () =>
 
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="voucher-codes-paste">Paste codes, one per line</FieldLabel>
-          <textarea
+          <LimitedTextArea limit={200000}
             id="voucher-codes-paste"
             value={pasted}
             onChange={(e) => setPasted(e.target.value)}
@@ -597,6 +606,9 @@ function CouponLimitsModal({ onClose }: { onClose: () => void }) {
           different coupons. Leave a field blank for no limit.
         </p>
         <TextField
+          kind="count"
+          countMin={1}
+          countMax={100}
           label="Times per month"
           type="number"
           min={1}
@@ -607,6 +619,9 @@ function CouponLimitsModal({ onClose }: { onClose: () => void }) {
           error={perMonthError ?? (monthlyAboveTotal ? 'Can’t be more than the total limit.' : undefined)}
         />
         <TextField
+          kind="count"
+          countMin={1}
+          countMax={100}
           label="Times in total"
           type="number"
           min={1}

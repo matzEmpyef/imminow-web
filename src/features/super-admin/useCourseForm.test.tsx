@@ -157,3 +157,46 @@ describe('useCourseForm fee decimals', () => {
     expect(courseFormBlocker(result.current)?.text).toBe('Amounts have at most two decimal places (Fees tab).')
   })
 })
+
+// Decision 154: a score typed for an exam must sit inside the range the exam is set up with in
+// Catalog Settings; the form will not save otherwise and names the range.
+describe('useCourseForm score ranges', () => {
+  const exams = [
+    { id: 'ielts', name: 'IELTS', min_value: 0, max_value: 9 },
+    { id: 'gre', name: 'GRE', min_value: 260, max_value: 340 },
+  ] as components['schemas']['Exam'][]
+  const course: Course = {
+    id: 'course-2',
+    name: 'MSc Data',
+    college_id: 'college-1',
+    language: 'English',
+    level: 'masters',
+    field_of_study: 'Computer Science',
+    delivery: 'on_campus',
+  } as Course
+
+  it('has no range problem for a score inside the exam’s range', () => {
+    const { result } = renderHook(() => useCourseForm(college, course, undefined, exams), { wrapper })
+    act(() => result.current.onAddEnglish())
+    act(() => result.current.onChangeEnglish(0, { exam_id: 'ielts', min_overall: '6.5', min_band: '6' }))
+    expect(result.current.scoreRangeError).toBeUndefined()
+  })
+
+  it('names the range for an IELTS score of 65 and keeps the form from saving', () => {
+    const { result } = renderHook(() => useCourseForm(college, course, undefined, exams), { wrapper })
+    act(() => result.current.onAddEnglish())
+    act(() => result.current.onChangeEnglish(0, { exam_id: 'ielts', min_overall: '65', min_band: '' }))
+    expect(result.current.scoreRangeError).toBe('Enter a score from 0 to 9 for IELTS.')
+    expect(result.current.isValid).toBe(false)
+    expect(courseFormBlocker(result.current)?.text).toContain('Enter a score from 0 to 9 for IELTS.')
+  })
+
+  it('checks an entrance exam score the same way', () => {
+    const { result } = renderHook(() => useCourseForm(college, course, undefined, exams), { wrapper })
+    act(() => result.current.onAddAptitude())
+    act(() => result.current.onChangeAptitude(0, { exam_id: 'gre', min_score: '310', required: 'required' }))
+    expect(result.current.scoreRangeError).toBeUndefined()
+    act(() => result.current.onChangeAptitude(0, { min_score: '3100' }))
+    expect(result.current.scoreRangeError).toBe('Enter a score from 260 to 340 for GRE.')
+  })
+})

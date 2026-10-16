@@ -17,6 +17,7 @@ import {
 import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDateTime, localDateISO } from '@/lib/time'
+import { dateRangeError } from '@/lib/validation'
 
 const ACTION_COLORS = {
   create: 'success',
@@ -104,7 +105,7 @@ export function PlatformAuditLogPage() {
     action_type: actionType || undefined,
     area: area || undefined,
     from: from || undefined,
-    to: to || undefined,
+    to: to && !dateRangeError(from, to) ? to : undefined,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
   }

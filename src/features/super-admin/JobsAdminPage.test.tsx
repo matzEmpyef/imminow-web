@@ -432,3 +432,45 @@ describe('the job form: the category is picked from the managed list', () => {
     expect(picker).toHaveAttribute('aria-invalid', 'false')
   })
 })
+
+// Decision 154: the apply link is one https rule, and a listing cannot end before it starts.
+describe('the job form: the link and the dates', () => {
+  function openRemote() {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Listing' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add Listing' })
+    fillTheRest(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/^Work mode/), { target: { value: 'remote' } })
+    return dialog
+  }
+
+  it('refuses an http link with the one web-address sentence', () => {
+    const dialog = openRemote()
+    fireEvent.change(within(dialog).getByLabelText(/^Apply URL/), { target: { value: 'http://jobs.example.com/1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate).not.toHaveBeenCalled()
+    expect(
+      within(dialog).getAllByText('Enter a web address that starts with https:// (up to 2048 characters).').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('refuses an end date before the start date, and says so beside the end date', () => {
+    const dialog = openRemote()
+    fireEvent.change(within(dialog).getByLabelText(/^Active from/), { target: { value: '2026-11-10' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Active to/), { target: { value: '2026-11-01' } })
+    expect(within(dialog).getByText('The end date must be on or after the start date.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate).not.toHaveBeenCalled()
+    fireEvent.change(within(dialog).getByLabelText(/^Active to/), { target: { value: '2026-11-10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate).toHaveBeenCalledTimes(1)
+    expect(createMutate.mock.calls[0][0]).toMatchObject({ active_from: '2026-11-10', active_to: '2026-11-10' })
+  })
+
+  it('bounds the dates to 1900 and 2100', () => {
+    const dialog = openRemote()
+    const from = within(dialog).getByLabelText(/^Active from/)
+    expect(from).toHaveAttribute('min', '1900-01-01')
+    expect(from).toHaveAttribute('max', '2100-12-31')
+  })
+})

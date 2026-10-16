@@ -92,8 +92,9 @@ function FieldFormModal({ field, onClose }: { field?: FieldOfStudy; onClose: () 
       }
     >
       <form id="field-of-study-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField kind="label" label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
         <TextField
+          limit={1000}
           label="Alternate names"
           value={aliasText}
           onChange={(e) => setAliasText(e.target.value)}

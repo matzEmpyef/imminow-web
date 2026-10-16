@@ -10,6 +10,7 @@ import { usePlatformPermission } from '@/lib/me'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { showToast } from '@/lib/toast'
 import { useConsultancyStaff, useHandOverAdmin } from '@/queries/adminConsultancies'
+import { isTextOk } from '@/lib/validation'
 
 /** The Support Tools permission: the server checks the same key on the hand-over route. */
 const SUPPORT_TOOLS = 'support_tools'
@@ -97,7 +98,7 @@ export function ChangeAdministratorModal({
 
   const stillNeeded = [
     ...(employeeId ? [] : ['the new administrator']),
-    ...(reason.trim().length >= 3 ? [] : ['a reason (at least 3 characters)']),
+    ...(isTextOk('reason', reason) ? [] : ['a reason (at least 3 characters)']),
     ...(password ? [] : ['your password']),
   ]
 
@@ -176,6 +177,7 @@ export function ChangeAdministratorModal({
         )}
 
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={2}

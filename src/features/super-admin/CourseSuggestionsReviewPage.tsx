@@ -25,6 +25,7 @@ import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { CourseFormModal } from './CollegeDetailPage'
 import type { components } from '@/api/schema'
+import { isTextOk } from '@/lib/validation'
 
 type CourseSuggestion = components['schemas']['CourseSuggestion']
 type Course = components['schemas']['Course']
@@ -309,7 +310,7 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
                 <Button
                   variant="destructive"
                   loading={reject.isPending}
-                  disabled={!reason.trim()}
+                  disabled={!isTextOk('reason', reason)}
                   onClick={() =>
                     reject.mutate(
                       { id: suggestion.id!, reason: reason.trim() },
@@ -478,7 +479,6 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
           isMoneyField ? (
             <MoneyField
               label="Value to apply if modified"
-              min={0}
               value={modifiedValue}
               onChange={(e) => {
                 setModifiedValue(e.target.value)
@@ -498,6 +498,7 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
 
         {showReject && pending && (
           <TextField
+            kind="reason"
             label="Reason for rejection"
             required
             value={reason}

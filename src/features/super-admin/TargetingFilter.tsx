@@ -210,6 +210,9 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
 
       <div className="grid grid-cols-3 gap-sm">
         <TextField
+          kind="count"
+          countMin={0}
+          countMax={120}
           label="Minimum age"
           id="targeting-min-age"
           type="number"
@@ -217,6 +220,9 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
           onChange={(e) => set({ min_age: e.target.value === '' ? null : Number(e.target.value) })}
         />
         <TextField
+          kind="count"
+          countMin={0}
+          countMax={120}
           label="Maximum age"
           id="targeting-max-age"
           type="number"

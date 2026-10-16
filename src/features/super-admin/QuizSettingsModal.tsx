@@ -15,6 +15,7 @@ import { useCountries } from '@/queries/countries'
 import { type Event } from './quizShared'
 import { PrizeEditor } from './QuizQuestionEditor'
 import { SCHEDULE_LOCKED_MESSAGE, useQuizForm } from './useQuizForm'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 /** The three locked fields as the form calls them, for "your change to … has been put back". */
 const SCHEDULE_FIELD_WORDS: Record<string, string> = {
@@ -159,10 +160,10 @@ export function QuizSettingsModal({
             dates below before saving.
           </p>
         )}
-        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="quiz-description">Description</FieldLabel>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="quiz-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -253,6 +254,9 @@ export function QuizSettingsModal({
         </p>
         <div className="grid grid-cols-3 gap-sm">
           <TextField
+            kind="count"
+            countMin={1}
+            countMax={200}
             label="Questions per attempt"
             type="number"
             required
@@ -265,6 +269,9 @@ export function QuizSettingsModal({
             disabled={isEditing && (editingEvent?.attendance_count ?? 0) > 0}
           />
           <TextField
+            kind="count"
+            countMin={1}
+            countMax={1440}
             label="Time limit (minutes)"
             type="number"
             min={1}
@@ -275,6 +282,7 @@ export function QuizSettingsModal({
             onChange={(e) => setTimeLimitMinutes(e.target.value === '' ? null : Number(e.target.value))}
           />
           <TextField
+            kind="count"
             label="Participation points"
             type="number"
             disabled={rewardsLocked}

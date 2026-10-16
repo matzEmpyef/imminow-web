@@ -109,6 +109,7 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
       {rejecting && status === 'pending' && (
         <div className="flex flex-col gap-sm">
           <TextAreaField
+            kind="reason"
             label="Reason for rejecting"
             required
             value={reason}

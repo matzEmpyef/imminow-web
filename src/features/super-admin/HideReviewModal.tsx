@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal'
 import { TextAreaField } from '@/components/TextAreaField'
 import { showToast } from '@/lib/toast'
 import { useModerateReview, type Review } from '@/queries/adminReviews'
+import { checkText, isTextOk } from '@/lib/validation'
 
 /**
  * Hides a review — mirrors ComplaintResolveModal.tsx's mandatory-reason convention. The reason is
@@ -23,7 +24,7 @@ export function HideReviewModal({
   const moderate = useModerateReview(review.id)
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const clientReasonError = attempted && !reason.trim() ? 'Add a reason.' : undefined
+  const clientReasonError = attempted ? checkText('reason', reason) : undefined
   const serverReasonError =
     moderate.isError && moderate.error instanceof ApiError && moderate.error.details?.reason === 'required'
       ? 'Add a reason.'
@@ -31,7 +32,7 @@ export function HideReviewModal({
   const reasonError = clientReasonError ?? serverReasonError
 
   function handleHide() {
-    if (!reason.trim()) {
+    if (!isTextOk('reason', reason)) {
       setAttempted(true)
       return
     }
@@ -71,6 +72,7 @@ export function HideReviewModal({
           words down — the review can always be published again later.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={4}

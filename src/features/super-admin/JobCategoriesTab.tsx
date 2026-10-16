@@ -81,6 +81,7 @@ function CategoryFormModal({ category, onClose }: { category?: JobCategory; onCl
     >
       <form id="job-category-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="label"
           label="Name"
           required
           value={name}

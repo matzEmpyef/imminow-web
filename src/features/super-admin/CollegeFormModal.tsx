@@ -10,6 +10,7 @@ import { useCreateCollege, useUpdateCollege } from '@/queries/adminColleges'
 import { showToast } from '@/lib/toast'
 import { humaniseCode } from '@/lib/humanise'
 import type { components } from '@/api/schema'
+import { percentError, countError, urlError, isTextOk } from '@/lib/validation'
 
 type College = components['schemas']['College']
 
@@ -78,18 +79,28 @@ export function CollegeFormModal({
   // A PERCENTAGE, 0–100 (assumptions audit M25, product owner 2026-09-19) — "85" typed for 8.5
   // was stored verbatim and shown as an 85 % acceptance rate at a school that takes fewer than one
   // in ten. Same check the server now makes, run here so it is caught before the submit.
-  const acceptanceValid =
-    acceptanceRate === '' || (Number(acceptanceRate) >= 0 && Number(acceptanceRate) <= 100)
+  const acceptanceValid = acceptanceRate === '' || !percentError(acceptanceRate)
   // Rank 0 or negative isn't a rank (product review, 2026-09-12) — empty still means "not ranked."
-  const qsRankValid = qsRank === '' || Number(qsRank) >= 1
-  const theRankValid = theRank === '' || Number(theRank) >= 1
+  const qsRankValid = qsRank === '' || !countError(qsRank, { min: 1, max: 10000 })
+  const theRankValid = theRank === '' || !countError(theRank, { min: 1, max: 10000 })
+  const yearsValid =
+    (qsRankYear === '' || !countError(qsRankYear, { min: 1900, max: 2100 })) &&
+    (theRankYear === '' || !countError(theRankYear, { min: 1900, max: 2100 }))
+  const websiteError = urlError(website ?? '')
   // The year is required with the rank, and meaningless without it (M25).
   const qsYearError =
     qsRank !== '' && qsRankYear === '' ? 'Say which year’s QS table this rank is from.' : undefined
   const theYearError =
     theRank !== '' && theRankYear === '' ? 'Say which year’s THE table this rank is from.' : undefined
   const canSave =
-    Boolean(name.trim()) && acceptanceValid && qsRankValid && theRankValid && !qsYearError && !theYearError
+    isTextOk('title', name) &&
+    acceptanceValid &&
+    qsRankValid &&
+    theRankValid &&
+    yearsValid &&
+    !websiteError &&
+    !qsYearError &&
+    !theYearError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -97,7 +108,7 @@ export function CollegeFormModal({
     const body = {
       name: name.trim(),
       logo_url: logoUrl || null,
-      website: website || null,
+      website: (website ?? '').trim() || null,
       description,
       qs_rank: qsRank === '' ? null : Number(qsRank),
       // The year travels with its rank or not at all (M25) — a year on its own describes nothing,
@@ -148,14 +159,20 @@ export function CollegeFormModal({
     >
       <form id="college-form" onSubmit={handleSubmit} className="flex flex-col gap-xl">
         <FormSection title="Identity">
-          <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
+          <TextField kind="title" label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
           <ImageUploadField
             label="Logo"
             value={logoUrl ?? ''}
             onChange={setLogoUrl}
             hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
           />
-          <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
+          <TextField
+            kind="url"
+            label="Website"
+            value={website ?? ''}
+            onChange={(e) => setWebsite(e.target.value)}
+            error={websiteError}
+          />
         </FormSection>
 
         <FormSection
@@ -166,6 +183,9 @@ export function CollegeFormModal({
             {/* The year sits BESIDE its rank (assumptions audit M25, product owner 2026-09-19),
                 so the pair is visibly one answer rather than two unrelated boxes. */}
             <TextField
+              kind="count"
+              countMin={1}
+              countMax={10000}
               label="QS rank"
               type="number"
               min="1"
@@ -174,6 +194,9 @@ export function CollegeFormModal({
               error={qsRankValid ? undefined : 'Rank must be 1 or higher.'}
             />
             <TextField
+              kind="count"
+              countMin={1900}
+              countMax={2100}
               label="QS table year"
               type="number"
               min="1900"
@@ -183,6 +206,9 @@ export function CollegeFormModal({
               placeholder="e.g. 2026"
             />
             <TextField
+              kind="count"
+              countMin={1}
+              countMax={10000}
               label="THE rank"
               type="number"
               min="1"
@@ -191,6 +217,9 @@ export function CollegeFormModal({
               error={theRankValid ? undefined : 'Rank must be 1 or higher.'}
             />
             <TextField
+              kind="count"
+              countMin={1900}
+              countMax={2100}
               label="THE table year"
               type="number"
               min="1900"
@@ -200,6 +229,7 @@ export function CollegeFormModal({
               placeholder="e.g. 2026"
             />
             <TextField
+              kind="percent"
               label="Acceptance %"
               type="number"
               min="0"

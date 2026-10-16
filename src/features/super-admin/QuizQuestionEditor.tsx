@@ -169,6 +169,7 @@ export function PrizeEditor({
   return (
     <div className="flex items-end gap-sm">
       <TextField
+        kind="count"
         label="Position"
         type="number"
         min={1}
@@ -189,6 +190,7 @@ export function PrizeEditor({
         disabled={disabled}
       />
       <TextField
+        kind="count"
         label="Bonus points"
         type="number"
         min={1}

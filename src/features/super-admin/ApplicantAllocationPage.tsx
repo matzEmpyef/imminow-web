@@ -23,6 +23,7 @@ import { admissionCommissionBody, admissionRefusal, emptyAmounts, stillNeeded } 
 import { guardianHoldLabel } from '@/lib/guardianGate'
 import { waitingText } from './waitingText'
 import type { components } from '@/api/schema'
+import { isTextOk } from '@/lib/validation'
 
 type QueueEntry = components['schemas']['ApplicantAllocationEntry']
 type Source = NonNullable<QueueEntry['source']>
@@ -112,7 +113,7 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
               </Button>
               <Button
                 loading={resolve.isPending}
-                disabled={!note.trim()}
+                disabled={!isTextOk('reason', note)}
                 onClick={() =>
                   resolve.mutate(note.trim(), {
                     onSuccess: () => {
@@ -135,6 +136,7 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
             </p>
             <div className="flex flex-col gap-xs">
               <TextAreaField
+                kind="reason"
                 label="Why are you declining the transfer?"
                 required
                 id={`resolve-note-${entry.id}`}
@@ -146,10 +148,6 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
                 // The server's own sentence if it still refuses the note.
                 error={resolve.isError ? resolve.error.message : undefined}
               />
-              {/* Always visible, not a hint: a hint gives way to an error message, and the limit must not. */}
-              <p className="pl-lg text-caption text-text-secondary">
-                {note.length.toLocaleString('en-US')}/{DECLINE_NOTE_MAX.toLocaleString('en-US')}
-              </p>
             </div>
             <p className="text-caption text-text-secondary">
               The complaint itself stays open — declining a transfer is not the same as resolving what they complained

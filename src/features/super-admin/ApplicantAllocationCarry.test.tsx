@@ -217,16 +217,20 @@ describe('Applicant Allocation — declining a change request', () => {
   it('stops the note at 1,971 characters', () => {
     showQueue({ ...changeRow, complaint_id: 'cmp-1' })
     fireEvent.click(screen.getByRole('button', { name: 'Decline the transfer request from Asha Nair' }))
-    expect(screen.getByLabelText(/Why are you declining the transfer/)).toHaveAttribute('maxlength', '1971')
+    const note = screen.getByLabelText(/Why are you declining the transfer/) as HTMLTextAreaElement
+    fireEvent.change(note, { target: { value: 'x'.repeat(2500) } })
+    expect(note.value).toHaveLength(1971)
   })
 
-  // Review 2.113: the cap was silent. The count and the limit sit under the box.
-  it('shows how much of the 1,971 characters the note has used', () => {
+  // Review 2.113: the cap was silent. Decision 154: the count and the limit sit under the box from 90%.
+  it('shows how much of the 1,971 characters the note has used once it nears the limit', () => {
     showQueue({ ...changeRow, complaint_id: 'cmp-1' })
     fireEvent.click(screen.getByRole('button', { name: 'Decline the transfer request from Asha Nair' }))
-    expect(screen.getByText('0/1,971')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText(/Why are you declining the transfer/), { target: { value: 'Not eligible' } })
-    expect(screen.getByText('12/1,971')).toBeInTheDocument()
+    const note = screen.getByLabelText(/Why are you declining the transfer/)
+    fireEvent.change(note, { target: { value: 'Not eligible' } })
+    expect(screen.queryByText('12 / 1971')).toBeNull()
+    fireEvent.change(note, { target: { value: 'x'.repeat(1800) } })
+    expect(screen.getByText('1800 / 1971')).toBeInTheDocument()
   })
 
   it("shows the server's sentence against the note if it still refuses", () => {
@@ -239,7 +243,6 @@ describe('Applicant Allocation — declining a change request', () => {
     showQueue({ ...changeRow, complaint_id: 'cmp-1' })
     fireEvent.click(screen.getByRole('button', { name: 'Decline the transfer request from Asha Nair' }))
     expect(screen.getByText('That note is too long.')).toBeInTheDocument()
-    expect(screen.getByText('0/1,971')).toBeInTheDocument()
   })
 })
 

@@ -28,6 +28,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
 
 type Audience = NonNullable<components['schemas']['BroadcastInput']['audience']>
 type BroadcastTargeting = components['schemas']['Targeting']
@@ -319,7 +320,7 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="broadcast-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField kind="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
         {/* Closed list as of 2026-08-27 (was a free-text box). It only labels the send history, so
             free text defeated its own purpose — the same value typed three ways filed three ways. */}
         <SelectField
@@ -406,7 +407,7 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           <label className="text-body-sm font-medium text-text-primary" htmlFor="body">
             Body
           </label>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="body"
             value={body}
             onChange={(e) => setBody(e.target.value)}

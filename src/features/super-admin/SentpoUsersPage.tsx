@@ -11,6 +11,8 @@ import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { daysSince, formatDate, formatDateTime, localDateISO } from '@/lib/time'
 import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
+import { DATE_MIN, DATE_MAX, dateRangeError } from '@/lib/validation'
+import { DateRangeProblem } from '@/components/DateRangeProblem'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
 
@@ -176,7 +178,7 @@ export function SentpoUsersPage() {
     profile: profile || undefined,
     // A preset becomes a signed-up-from date; only "Custom" sends what the date inputs hold.
     from: joined && joined !== 'custom' ? daysAgoIsoDate(Number(joined)) : joined === 'custom' && from ? from : undefined,
-    to: joined === 'custom' && to ? to : undefined,
+    to: joined === 'custom' && to && !dateRangeError(from, to) ? to : undefined,
     include_erased: showErased || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
   }
@@ -417,6 +419,8 @@ export function SentpoUsersPage() {
                 <>
                   <input
                     type="date"
+                    min={DATE_MIN}
+                    max={to || DATE_MAX}
                     value={from}
                     onChange={(e) => {
                       setFrom(e.target.value)
@@ -427,6 +431,8 @@ export function SentpoUsersPage() {
                   />
                   <input
                     type="date"
+                    min={from || DATE_MIN}
+                    max={DATE_MAX}
                     value={to}
                     onChange={(e) => {
                       setTo(e.target.value)
@@ -435,6 +441,7 @@ export function SentpoUsersPage() {
                     aria-label="Signed up to"
                     className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
                   />
+                  <DateRangeProblem from={from} to={to} />
                 </>
               )}
             </>

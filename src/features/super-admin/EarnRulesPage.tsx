@@ -10,6 +10,7 @@ import { showToast } from '@/lib/toast'
 import { SelectField } from '@/components/SelectField'
 import { useEarnRules, useProfileMilestones, useUpdateEarnRule } from '@/queries/earnRules'
 import type { components } from '@/api/schema'
+import { COUNT_MAX, SEARCH_MAX, countError } from '@/lib/validation'
 
 type EarnRule = components['schemas']['EarnRule']
 type CapPeriod = EarnRule['cap_period']
@@ -160,7 +161,10 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
   const limitProblem = (value: string): string | undefined => {
     if (value === '') return undefined
     const n = Number(value)
-    return Number.isInteger(n) && n >= 1 ? undefined : 'Enter a whole number of at least 1, or leave it empty for no limit.'
+    // A whole number from 1 up to 10,00,000 (decision 154, ruling 8).
+    return Number.isInteger(n) && n >= 1 && n <= COUNT_MAX
+      ? undefined
+      : 'Enter a whole number from 1 to 10,00,000, or leave it empty for no limit.'
   }
   const awardCapError = limitProblem(awardCap)
   const lifetimeCapError = capPeriod === 'day' ? limitProblem(lifetimeCap) : undefined
@@ -205,7 +209,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
           {updateRule.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{updateRule.error.message}</p>
           )}
-          <Button type="submit" form="rule-form" loading={updateRule.isPending} disabled={dailyWithoutLimit || hasLimitError}>
+          <Button type="submit" form="rule-form" loading={updateRule.isPending} disabled={dailyWithoutLimit || hasLimitError || Boolean(countError(pointsValue, { min: 1 }))}>
             Save Changes
           </Button>
         </>
@@ -215,6 +219,8 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
         {caption && <p className="text-body-sm text-text-secondary">{caption}</p>}
         <div className="grid grid-cols-2 gap-sm">
           <TextField
+            kind="count"
+            countMin={1}
             label="Points"
             type="number"
             required
@@ -236,6 +242,8 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
         </div>
         <div className="grid grid-cols-2 gap-sm">
           <TextField
+            kind="count"
+            countMin={1}
             label="Times limit"
             type="number"
             min={1}
@@ -245,6 +253,8 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             error={awardCapError}
           />
           <TextField
+            kind="count"
+            countMin={1}
             label="Points limit"
             type="number"
             min={1}
@@ -256,6 +266,8 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
         </div>
         {capPeriod === 'day' && (
           <TextField
+            kind="count"
+            countMin={1}
             label="Lifetime points limit"
             type="number"
             min={1}
@@ -418,6 +430,7 @@ export function EarnRulesPage() {
           <div className="border-b border-border p-md">
             <input
               value={search}
+              maxLength={SEARCH_MAX}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search trigger…"
               style={{ maxWidth: '20rem' }}

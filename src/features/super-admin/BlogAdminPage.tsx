@@ -25,6 +25,7 @@ import { showToast } from '@/lib/toast'
 import { sanitizeArticleHtml } from '@/lib/sanitizeHtml'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
+import { urlError } from '@/lib/validation'
 
 type BlogCategoryMapping = components['schemas']['BlogCategoryMapping']
 type BlogArticle = components['schemas']['BlogArticle']
@@ -438,7 +439,7 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
 
   function handleFetch(e: FormEvent) {
     e.preventDefault()
-    if (!url.trim()) return
+    if (!url.trim() || urlError(url)) return
     resolve.mutate(url.trim())
   }
 
@@ -489,7 +490,12 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setUrl(e.target.value)}
             />
           </div>
-          <Button type="submit" variant="secondary" loading={resolve.isPending} disabled={!url.trim()}>
+          <Button
+            type="submit"
+            variant="secondary"
+            loading={resolve.isPending}
+            disabled={!url.trim() || Boolean(urlError(url))}
+          >
             Fetch
           </Button>
         </form>

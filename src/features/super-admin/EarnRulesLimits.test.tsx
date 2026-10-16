@@ -37,7 +37,7 @@ describe('Earn Rules limits', () => {
   it('answers a zero or decimal limit with the page’s sentence, not a browser tooltip', () => {
     openEditor()
     fireEvent.change(screen.getByLabelText('Times limit'), { target: { value: '0' } })
-    expect(screen.getByText('Enter a whole number of at least 1, or leave it empty for no limit.')).toBeInTheDocument()
+    expect(screen.getByText('Enter a whole number from 1 to 10,00,000, or leave it empty for no limit.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled()
   })
 

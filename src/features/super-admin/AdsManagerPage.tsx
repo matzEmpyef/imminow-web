@@ -32,6 +32,7 @@ import { useCountries } from '@/queries/countries'
 import { formatEventDateTime, formatDateTime, formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
+import { urlError, dateRangeError, dateError } from '@/lib/validation'
 
 const ALL_ACCOUNTS = consultancySource()
 
@@ -71,7 +72,7 @@ const eventTypeLabels: Record<string, string> = {
 //
 // `name` (2026-09-11) — an admin-only label so a row reads as "Diwali offer" instead of "External
 // url" when there are several live ads with the same destination type. Never shown to students.
-function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: () => void }) {
+export function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: () => void }) {
   const isEditing = Boolean(editingAd)
   const createAd = useCreateAd()
   const updateAd = useUpdateAd(editingAd?.id ?? '', editingAd?.version)
@@ -130,12 +131,13 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   // it is never the thing this check is protecting against and always passes.
   const imageInsecure = Boolean(imageUrl) && /^http:\/\//i.test(imageUrl)
 
+  const adRangeError = dateRangeError(activeFrom, activeTo)
   const [attemptedStep1, setAttemptedStep1] = useState(false)
   const missingStep1Fields = useMemo(() => {
     const missing: string[] = []
     if (!imageUrl) missing.push('Image')
     else if (imageInsecure) missing.push('Image (must be a secure https:// address)')
-    if (destinationType === 'external_url' && !destinationUrl) missing.push('Destination URL')
+    if (destinationType === 'external_url' && (!destinationUrl || urlError(destinationUrl))) missing.push('Destination URL (an https:// address)')
     if (destinationType === 'event' && !destinationId) missing.push('Event')
     if (destinationType === 'blog' && !destinationId) missing.push('Blog article')
     if (destinationType === 'internal' && !destinationId) missing.push('Consultancy')
@@ -145,7 +147,9 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const step1Error =
     attemptedStep1 && !step1Valid
       ? `Missing: ${missingStep1Fields.join(', ')}.`
-      : undefined
+      : attemptedStep1
+        ? adRangeError
+        : undefined
   const imageFieldError = attemptedStep1
     ? !imageUrl
       ? 'Add an image.'
@@ -167,7 +171,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
           : destinationConsultancyName || (destinationId ? 'Loading…' : 'No consultancy selected yet')
 
   function handleNext() {
-    if (!step1Valid) {
+    if (!step1Valid || adRangeError) {
       setAttemptedStep1(true)
       return
     }
@@ -176,17 +180,19 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!step1Valid) {
+    if (!step1Valid || adRangeError) {
       setAttemptedStep1(true)
       setStep(1)
       return
     }
+    // The ad cannot end before it starts (decision 154, ruling 7).
+    if (dateError(activeFrom) || dateError(activeTo)) return
     const body = {
       name: name.trim() || null,
       image_url: imageUrl,
       destination_type: destinationType,
       destination_id: destinationType === 'external_url' ? undefined : destinationId || undefined,
-      destination_url: destinationType === 'external_url' ? destinationUrl : undefined,
+      destination_url: destinationType === 'external_url' ? destinationUrl.trim() : undefined,
       priority,
       active_from: activeFrom || null,
       active_to: activeTo || null,
@@ -308,6 +314,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             </SelectField>
             {destinationType === 'external_url' && (
               <TextField
+                kind="url"
                 label="Destination URL"
                 required
                 value={destinationUrl}
@@ -363,6 +370,8 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
               <span className="font-medium text-text-primary">Opens:</span> {destinationPreview}
             </p>
             <TextField
+              kind="count"
+              countMin={1}
               label="Priority"
               type="number"
               required
@@ -389,6 +398,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
                 type="date"
                 value={activeTo}
                 onChange={(e) => setActiveTo(e.target.value)}
+                error={adRangeError}
                 className="flex-1"
               />
             </div>

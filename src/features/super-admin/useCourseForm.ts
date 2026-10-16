@@ -11,10 +11,12 @@ import {
   type FormTab,
   type ScoreSchemeValue,
 } from './courseFormShared'
+import { examScoreError } from '@/lib/examScores'
 
 type College = components['schemas']['College']
 type Course = components['schemas']['Course']
 type CourseInput = components['schemas']['CourseInput']
+type Exam = components['schemas']['Exam']
 
 /** months | years — required on write since the assumptions audit (M24, 2026-09-19). */
 export type DurationUnit = NonNullable<CourseInput['duration_unit']>
@@ -145,6 +147,8 @@ export interface CourseFormValue {
   entryQualificationError?: string
   schemeError?: string
   aptitudeRequiredError?: string
+  /** A score typed outside the range its exam is set up with. */
+  scoreRangeError?: string
   feeCurrencyError?: string
   feePeriodError?: string
   appFeeCurrencyError?: string
@@ -162,7 +166,12 @@ export interface CourseFormValue {
  * `college` is needed only to compute the campus toggle's "all campuses" derived state
  * (allSelected/onToggleAll) against the college's current campus list.
  */
-export function useCourseForm(college: College, editingCourse?: Course, defaultCampusId?: string): CourseFormValue {
+export function useCourseForm(
+  college: College,
+  editingCourse?: Course,
+  defaultCampusId?: string,
+  exams: Exam[] = [],
+): CourseFormValue {
   const [activeTab, setActiveTab] = useState<FormTab>('Basics')
 
   // Basics
@@ -338,6 +347,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   const aptitudeRequiredError = aptitude.some((a) => a.exam_id && a.min_score !== '' && a.required === '')
     ? 'Say whether each entrance exam is required or optional — neither is assumed.'
     : undefined
+  // A score is checked against the range its exam is set up with in Catalog Settings (decision 154).
+  const examById = (id: string) => exams.find((e) => e.id === id)
+  const scoreRangeError =
+    english
+      .map((e) => examScoreError(e.min_overall, examById(e.exam_id)) ?? examScoreError(e.min_band, examById(e.exam_id)))
+      .find(Boolean) ?? aptitude.map((a) => examScoreError(a.min_score, examById(a.exam_id))).find(Boolean)
   const feeCurrencyError =
     feeAmount !== '' && feeCurrency === '' ? 'Pick the currency this fee is in.' : undefined
   // Asked only alongside an amount, like the currency above: with no tuition figure there is
@@ -551,6 +566,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       !entryQualificationError &&
       !schemeError &&
       !aptitudeRequiredError &&
+      !scoreRangeError &&
       !feeCurrencyError &&
       !feePeriodError &&
       !appFeeCurrencyError &&
@@ -560,6 +576,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     entryQualificationError,
     schemeError,
     aptitudeRequiredError,
+    scoreRangeError,
     feeCurrencyError,
     feePeriodError,
     appFeeCurrencyError,
@@ -587,6 +604,7 @@ export function courseFormBlocker(form: CourseFormValue): { text: string; tone: 
   if (form.aptitudeRequiredError) {
     return { text: 'Say whether each entrance exam is required or optional (Entry Requirements tab).', tone: 'error' }
   }
+  if (form.scoreRangeError) return { text: `${form.scoreRangeError} (Entry Requirements tab).`, tone: 'error' }
   if (form.feeCurrencyError || form.appFeeCurrencyError) return { text: 'A fee needs its currency (Fees tab).', tone: 'error' }
   if (form.feePeriodError) {
     return { text: 'Say whether the tuition fee is per year or for the whole programme (Fees tab).', tone: 'error' }

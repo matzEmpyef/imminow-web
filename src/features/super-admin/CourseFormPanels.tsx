@@ -30,6 +30,7 @@ import { useStudyLevels } from '@/queries/studyLevels'
 import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
 import { useCourseLanguages } from '@/queries/courseFinder'
 import { campusLabel } from '@/lib/campus'
+import { examScoreError } from '@/lib/examScores'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -144,7 +145,7 @@ function AddableSelectField({
   if (typing || (value && !options.includes(value))) {
     return (
       <div className="flex flex-col gap-xs">
-        <TextField label={label} required={required} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        <TextField kind="label" label={label} required={required} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
         {options.length > 0 && (
           <button
             type="button"
@@ -185,7 +186,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
   return (
     <div className={panelClass(hidden)}>
       <FormSection title="Course">
-        <TextField label="Course name" required value={form.name} onChange={(e) => form.setName(e.target.value)} />
+        <TextField kind="title" label="Course name" required value={form.name} onChange={(e) => form.setName(e.target.value)} />
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           {/*
             A dropdown off the shared ladder since 2026-09-07, not a text box. As free text this
@@ -232,6 +233,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
             )}
           </SelectField>
           <TextField
+            kind="label"
             label="Credentials"
             value={form.credentials}
             onChange={(e) => form.setCredentials(e.target.value)}
@@ -259,6 +261,8 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
       <FormSection title="Duration" hint="One length, entered once — students read the words this makes.">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <TextField
+            kind="count"
+            countMax={1000}
             label="Length"
             type="number"
             min="0"
@@ -287,6 +291,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
       <FormSection title="Details">
         {/* Optional (user, 2026-09-04) — the app shows it as "Visit course page" in the phone's browser. */}
         <TextField
+          kind="url"
           label="Course page"
           type="url"
           value={form.courseUrl}
@@ -424,7 +429,6 @@ export function CourseFeesPanel({
         <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
           <MoneyField
             label="Tuition fee"
-            min={0}
             value={form.feeAmount}
             onChange={(e) => form.setFeeAmount(e.target.value)}
             error={serverMoneyMessage(refusal, 'fee.amount')}
@@ -470,7 +474,6 @@ export function CourseFeesPanel({
         <div className="grid grid-cols-1 items-center gap-md sm:grid-cols-3">
           <MoneyField
             label="Application fee"
-            min={0}
             value={form.appFeeAmount}
             onChange={(e) => form.setAppFeeAmount(e.target.value)}
             disabled={form.appFeeWaived}
@@ -500,6 +503,7 @@ export function CourseFeesPanel({
         <CheckRow checked={form.scholarship} onChange={form.setScholarship} label="Scholarship available" />
         {form.scholarship && (
           <TextField
+            kind="title"
             label="Scholarship note"
             value={form.scholarshipNote ?? ''}
             onChange={(e) => form.setScholarshipNote(e.target.value)}
@@ -542,6 +546,9 @@ function EnglishRequirementRow(p: {
   onChange: (patch: Partial<EnglishReq>) => void
   onRemove: () => void
 }) {
+  const exam = p.exams.find((e) => e.id === p.row.exam_id)
+  const overallError = examScoreError(p.row.min_overall, exam)
+  const bandError = examScoreError(p.row.min_band, exam)
   return (
     <div className="grid grid-cols-7 items-center gap-sm px-md py-sm">
       <div className="col-span-3">
@@ -557,6 +564,10 @@ function EnglishRequirementRow(p: {
         type="number"
         placeholder="e.g. 6.5"
         aria-label="Minimum overall score"
+        aria-invalid={Boolean(overallError)}
+        min={exam?.min_value ?? undefined}
+        max={exam?.max_value ?? undefined}
+        step="any"
         value={p.row.min_overall}
         onChange={(e) => p.onChange({ min_overall: e.target.value })}
         className={`${ROW_CONTROL} col-span-2`}
@@ -565,6 +576,10 @@ function EnglishRequirementRow(p: {
         type="number"
         placeholder="e.g. 6"
         aria-label="Minimum band score"
+        aria-invalid={Boolean(bandError)}
+        min={exam?.min_value ?? undefined}
+        max={exam?.max_value ?? undefined}
+        step="any"
         value={p.row.min_band}
         onChange={(e) => p.onChange({ min_band: e.target.value })}
         className={ROW_CONTROL}
@@ -572,6 +587,11 @@ function EnglishRequirementRow(p: {
       <div className="flex justify-end">
         <RemoveRowButton label="Remove this English test" onClick={p.onRemove} />
       </div>
+      {(overallError ?? bandError) && (
+        <p role="alert" className="col-span-7 text-caption text-error">
+          {overallError ?? bandError}
+        </p>
+      )}
     </div>
   )
 }
@@ -582,6 +602,8 @@ function AptitudeRequirementRow(p: {
   onChange: (patch: Partial<AptitudeReq>) => void
   onRemove: () => void
 }) {
+  const exam = p.exams.find((e) => e.id === p.row.exam_id)
+  const scoreError = examScoreError(p.row.min_score, exam)
   return (
     <div className="grid grid-cols-7 items-center gap-sm px-md py-sm">
       <div className="col-span-3">
@@ -597,6 +619,10 @@ function AptitudeRequirementRow(p: {
         type="number"
         placeholder="e.g. 310"
         aria-label="Minimum score"
+        aria-invalid={Boolean(scoreError)}
+        min={exam?.min_value ?? undefined}
+        max={exam?.max_value ?? undefined}
+        step="any"
         value={p.row.min_score}
         onChange={(e) => p.onChange({ min_score: e.target.value })}
         className={`${ROW_CONTROL} col-span-2`}
@@ -619,6 +645,11 @@ function AptitudeRequirementRow(p: {
       <div className="flex justify-end">
         <RemoveRowButton label="Remove this exam" onClick={p.onRemove} />
       </div>
+      {scoreError && (
+        <p role="alert" className="col-span-7 text-caption text-error">
+          {scoreError}
+        </p>
+      )}
     </div>
   )
 }
@@ -688,6 +719,8 @@ export function CourseRequirementsPanel({
             ))}
           </SelectField>
           <TextField
+            kind="count"
+            countMax={99}
             label="Maximum backlogs"
             type="number"
             min="0"
@@ -695,6 +728,8 @@ export function CourseRequirementsPanel({
             onChange={(e) => form.setMaxBacklogs(e.target.value)}
           />
           <TextField
+            kind="count"
+            countMax={600}
             label="Work experience (months)"
             type="number"
             min="0"
@@ -703,6 +738,7 @@ export function CourseRequirementsPanel({
           />
         </div>
         <TextField
+          kind="title"
           label="Required background"
           value={form.background ?? ''}
           onChange={(e) => form.setBackground(e.target.value)}

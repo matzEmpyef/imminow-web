@@ -148,6 +148,7 @@ function CampusFormModal({
     >
       <form id="campus-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="label"
           label="Campus name"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -156,6 +157,7 @@ function CampusFormModal({
           error={nameError}
         />
         <TextField
+          kind="label"
           label="City"
           value={city ?? ''}
           onChange={(e) => setCity(e.target.value)}
@@ -211,10 +213,10 @@ export function CourseFormModal({
   const createCourse = useCreateCourse()
   const updateCourse = useUpdateCourse(editingCourse?.id ?? '', editingCourse?.version)
   const examsCatalog = useExams()
-  const form = useCourseForm(college, editingCourse ?? (prefill as Course | undefined), defaultCampusId)
+  const activeExams = (examsCatalog.data ?? []).filter((e) => e.active !== false)
+  const form = useCourseForm(college, editingCourse ?? (prefill as Course | undefined), defaultCampusId, activeExams)
 
   const mutation = isEditing ? updateCourse : createCourse
-  const activeExams = (examsCatalog.data ?? []).filter((e) => e.active !== false)
   // New courses are created as DRAFTS (assumptions audit LOW "Create college / course", product
   // owner 2026-09-19) — `active: true` listed a course to students before its fee, deadlines or
   // entry requirements had anything in them. Unticked by default; publishing is a decision.

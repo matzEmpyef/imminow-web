@@ -149,6 +149,7 @@ function InstitutionFormModal({
     >
       <form id="institution-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
+          kind="title"
           label="Name"
           required
           value={name}
@@ -162,6 +163,7 @@ function InstitutionFormModal({
         />
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <TextField
+            kind="label"
             label="City"
             required
             value={city}
@@ -171,7 +173,7 @@ function InstitutionFormModal({
             }}
           />
           {isEditing ? (
-            <TextField label="Country" value={country} disabled readOnly />
+            <TextField kind="label" label="Country" value={country} disabled readOnly />
           ) : (
             <CountrySelect
               label="Country"
@@ -281,7 +283,7 @@ function PickInstitutionModal({
             </div>
           </div>
         )}
-        <TextField label="Search by name or city" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. choice thiruvalla" />
+        <TextField kind="search" label="Search by name or city" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. choice thiruvalla" />
         <div className="flex max-h-72 flex-col divide-y divide-border overflow-y-auto rounded-md border border-border">
           {results.isLoading && <p className="p-sm text-caption text-text-secondary">Searching…</p>}
           {!results.isLoading && rows.length === 0 && <p className="p-sm text-caption text-text-secondary">No institution matches.</p>}
@@ -653,7 +655,7 @@ function QueueView() {
               &ldquo;{current.institution_raw}&rdquo; is cleared from {who}&rsquo;s profile and leaves the queue — no
               institution is created or matched. They can enter their school again.
             </p>
-            <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Recorded in the audit log." />
+            <TextField kind="note" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Recorded in the audit log." />
           </div>
         </Modal>
       )}

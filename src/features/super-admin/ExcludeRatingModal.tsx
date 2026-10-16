@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal'
 import { TextAreaField } from '@/components/TextAreaField'
 import { showToast } from '@/lib/toast'
 import { useSetRatingExcluded, type AdminRating } from '@/queries/adminRatings'
+import { isTextOk, checkText } from '@/lib/validation'
 
 /**
  * Takes one rating out of a consultancy's score (owner decision 16). It changes a public number
@@ -25,7 +26,7 @@ export function ExcludeRatingModal({
   const setExcluded = useSetRatingExcluded(rating.id)
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const clientReasonError = attempted && !reason.trim() ? 'Add a reason.' : undefined
+  const clientReasonError = attempted ? checkText('reason', reason) : undefined
   const serverReasonError =
     setExcluded.isError && setExcluded.error instanceof ApiError && setExcluded.error.details?.reason === 'required'
       ? 'Add a reason.'
@@ -34,7 +35,7 @@ export function ExcludeRatingModal({
   const student = rating.student_name ?? 'Erased account'
 
   function handleExclude() {
-    if (!reason.trim()) {
+    if (!isTextOk('reason', reason)) {
       setAttempted(true)
       return
     }
@@ -83,6 +84,7 @@ export function ExcludeRatingModal({
           <li>You can restore the rating at any time.</li>
         </ul>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={4}

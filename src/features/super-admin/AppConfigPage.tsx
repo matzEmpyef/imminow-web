@@ -11,6 +11,8 @@ import { buildAppConfigPatch, compareVersions, minimumRaised } from './appConfig
 import { FeaturedConsultanciesCard, FeaturedInstitutesCard, FeaturedJobsCard } from './FeaturedAccountsCard'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { urlError, isTextOk } from '@/lib/validation'
 
 type AppConfig = components['schemas']['AppConfig']
 
@@ -22,6 +24,8 @@ const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
 function platformUrlError(value: string | null | undefined, host: string): string | undefined {
   const trimmed = (value ?? '').trim()
   if (!trimmed) return undefined
+  const generic = urlError(trimmed)
+  if (generic) return generic
   try {
     const url = new URL(trimmed)
     if (url.protocol === 'https:' && url.hostname === host) return undefined
@@ -87,12 +91,13 @@ export function VersionAndRatingCard() {
   const versionsValid = SEMVER_PATTERN.test(form.latest_version) && SEMVER_PATTERN.test(form.minimum_version)
   const minAboveLatest = versionsValid && compareVersions(form.minimum_version, form.latest_version) > 0
   const raisingMinimum = config.data != null && minimumRaised(form, config.data)
-  const reasonMissing = raisingMinimum && reason.trim().length === 0
+  const reasonMissing = raisingMinimum && !isTextOk('reason', reason)
   const canSave =
     versionsValid &&
     !reasonMissing &&
     !minAboveLatest &&
     form.update_url.trim().length > 0 &&
+    !urlError(form.update_url) &&
     !platformUrlError(form.update_url_android, 'play.google.com') &&
     !platformUrlError(form.update_url_ios, 'apps.apple.com') &&
     form.release_notes.trim().length > 0 &&
@@ -189,6 +194,7 @@ export function VersionAndRatingCard() {
         </div>
         {raisingMinimum && (
           <TextField
+            kind="reason"
             label="Reason for raising the minimum"
             required
             value={reason}
@@ -199,6 +205,7 @@ export function VersionAndRatingCard() {
           />
         )}
         <TextField
+          kind="url"
           label="Update URL (fallback)"
           required
           value={form.update_url}
@@ -207,6 +214,7 @@ export function VersionAndRatingCard() {
         />
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <TextField
+            kind="url"
             label="Android update URL"
             value={form.update_url_android ?? ''}
             onChange={(e) => updateField('update_url_android', e.target.value)}
@@ -214,6 +222,7 @@ export function VersionAndRatingCard() {
             error={platformUrlError(form.update_url_android, 'play.google.com')}
           />
           <TextField
+            kind="url"
             label="iOS update URL"
             value={form.update_url_ios ?? ''}
             onChange={(e) => updateField('update_url_ios', e.target.value)}
@@ -228,7 +237,7 @@ export function VersionAndRatingCard() {
           <label className="text-body-sm font-medium text-text-primary" htmlFor="release-notes">
             Release notes<span className="text-error"> *</span>
           </label>
-          <textarea
+          <LimitedTextArea kind="longText"
             id="release-notes"
             value={form.release_notes}
             onChange={(e) => updateField('release_notes', e.target.value)}
@@ -249,6 +258,7 @@ export function VersionAndRatingCard() {
         </div>
         <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
           <TextField
+            kind="count"
             label="Min. days since install"
             type="number"
             min={0}
@@ -257,6 +267,7 @@ export function VersionAndRatingCard() {
             onChange={(e) => updateRatingField('min_days_since_install', Math.max(0, Number(e.target.value) || 0))}
           />
           <TextField
+            kind="count"
             label="Min. sessions"
             type="number"
             min={0}
@@ -265,6 +276,7 @@ export function VersionAndRatingCard() {
             onChange={(e) => updateRatingField('min_sessions', Math.max(0, Number(e.target.value) || 0))}
           />
           <TextField
+            kind="count"
             label="Cooldown (days)"
             type="number"
             min={0}

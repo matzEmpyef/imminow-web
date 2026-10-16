@@ -11,6 +11,7 @@ import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { SettingsUsedIn } from './SettingsUsedIn'
+import { MONEY_MAX } from '@/lib/validation'
 
 type ExchangeRate = components['schemas']['ExchangeRate']
 
@@ -296,6 +297,7 @@ function RateFormModal({
       <form id="rate-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField
           label="Currency code"
+          limit={10}
           required
           value={currency}
           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -311,6 +313,7 @@ function RateFormModal({
           type="number"
           step="any"
           min="0"
+          max={MONEY_MAX}
           value={inrPerUnit}
           onChange={(e) => setInrPerUnit(e.target.value)}
         />

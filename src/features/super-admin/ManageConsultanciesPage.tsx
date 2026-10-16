@@ -435,6 +435,7 @@ function SuspendConfirmModal({
         </p>
         <TextField
           label="Confirmation"
+          limit={40}
           value={confirmText}
           // Case-sensitive on purpose (review M7, 2026-09-12) — typing was silently uppercased
           // before, so "suspend" passed just as well as "SUSPEND" and the typed bar meant nothing.
