@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useRevertAcceptance } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * The audited mistake-fix (user decision, 2026-08-28): acceptance is otherwise final, so undoing
@@ -26,7 +27,7 @@ export function RevertAcceptanceModal({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!reason.trim()) return
+    if (!isTextOk('reason', reason)) return
     revert.mutate(
       { applicationId, reason: reason.trim() },
       {
@@ -52,7 +53,7 @@ export function RevertAcceptanceModal({
               form="revert-acceptance-form"
               variant="destructive"
               loading={revert.isPending}
-              disabled={!reason.trim()}
+              disabled={!isTextOk('reason', reason)}
             >
               Undo acceptance
             </Button>
@@ -68,7 +69,7 @@ export function RevertAcceptanceModal({
           <strong className="text-text-primary">{courseName}</strong> goes back to Offer received and its commission
           entry is voided. The reason lands in the audit log.
         </p>
-        <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+        <TextField kind="reason" label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       </form>
     </Modal>
   )

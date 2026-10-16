@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { useReopenPlan } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
 import { planReopenImpact } from '@/lib/reopenRules'
+import { isTextOk } from '@/lib/validation'
 
 interface PlanLike {
   name?: string | null
@@ -45,6 +46,7 @@ export function ReopenPlanCard({
     <Card className="flex flex-col gap-sm">
       <div className="flex items-end gap-sm">
         <TextField
+          kind="reason"
           label="Reason (mandatory)"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -52,7 +54,7 @@ export function ReopenPlanCard({
         />
         <Button
           variant="destructive"
-          disabled={!reason}
+          disabled={!isTextOk('reason', reason)}
           loading={reopenPlan.isPending}
           onClick={() =>
             reopenPlan.mutate(

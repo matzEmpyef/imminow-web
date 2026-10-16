@@ -9,6 +9,8 @@ import { consultancySource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 // Cross-consultancy Transfer Applicant (restored 2026-08-20 — user: "Transfer Applicant is
 // needed, both to other consultancy and Transfer Consultant also is needed.. Just that Transfer
@@ -49,7 +51,7 @@ export function TransferApplicantModal({
 
   const ready =
     Boolean(newConsultancyId) &&
-    reason.trim().length > 0 &&
+    isTextOk('reason', reason) &&
     transferCode.trim().length > 0 &&
     confirmText === 'TRANSFER' &&
     !blockedReason
@@ -129,7 +131,7 @@ export function TransferApplicantModal({
           <label className="text-body-sm font-medium text-text-primary" htmlFor="transfer-reason">
             Reason
           </label>
-          <textarea
+          <LimitedTextArea kind="reason"
             id="transfer-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -146,6 +148,7 @@ export function TransferApplicantModal({
           <input
             id="transfer-code"
             value={transferCode}
+            maxLength={40}
             onChange={(e) => setTransferCode(e.target.value.toUpperCase())}
             placeholder="e.g. 7F2K9C1A"
             autoComplete="off"
@@ -163,6 +166,7 @@ export function TransferApplicantModal({
           <input
             id="transfer-confirm"
             value={confirmText}
+            maxLength={40}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder="TRANSFER"
             autoComplete="off"

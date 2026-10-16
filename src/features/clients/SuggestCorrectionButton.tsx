@@ -158,7 +158,7 @@ export function SuggestCorrectionButton({
               value={suggested}
               onChange={(e) => setSuggested(e.target.value)}
             />
-            <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+            <TextField kind="note" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             {suggest.isError && <p className="text-body-sm text-error">{suggest.error.message}</p>}
           </div>
         </Modal>

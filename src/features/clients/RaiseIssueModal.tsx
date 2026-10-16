@@ -4,6 +4,8 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useRaiseIssue } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * Raise an issue with a case (2026-09-09). Deliberately a separate action from Close Case, and
@@ -25,7 +27,7 @@ export function RaiseIssueModal({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!reason.trim()) return
+    if (!isTextOk('reason', reason)) return
     raiseIssue.mutate(
       { id: clientId, reason: reason.trim() },
       {
@@ -47,13 +49,13 @@ export function RaiseIssueModal({
           {raiseIssue.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{raiseIssue.error.message}</p>
           )}
-          <StillNeeded items={reason.trim() ? [] : ['what has happened']} />
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['what has happened']} />
           <div className="flex gap-sm">
             <Button
               type="submit"
               form="raise-issue-form"
               loading={raiseIssue.isPending}
-              disabled={!reason.trim()}
+              disabled={!isTextOk('reason', reason)}
             >
               Raise Issue
             </Button>
@@ -86,7 +88,7 @@ export function RaiseIssueModal({
           <label className="text-body-sm font-medium text-text-primary" htmlFor="raise-issue-reason">
             What&rsquo;s happened
           </label>
-          <textarea
+          <LimitedTextArea kind="reason"
             id="raise-issue-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

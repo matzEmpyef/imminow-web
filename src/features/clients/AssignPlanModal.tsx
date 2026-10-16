@@ -100,6 +100,7 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
           <>
             <div className="flex flex-col gap-xs">
               <TextField
+                kind="label"
                 label="Call this plan"
                 required
                 value={name}

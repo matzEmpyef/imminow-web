@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { MoreRowsNote } from '@/components/MoreRowsNote'
 import { useDocumentLibrary, useShareLibraryDocument } from '@/queries/documentLibrary'
 import { useUploads } from '@/queries/uploads'
+import { SEARCH_MAX } from '@/lib/validation'
 
 // User-requested (2026-08-15) — "Send Document can be a document from Document Library also..
 // we need ability to select from this tab too." Reuses the same POST /document-library/{id}/share
@@ -39,6 +40,7 @@ export function ShareFromLibraryModal({ clientId, onClose }: { clientId: string;
       <div className="flex flex-col gap-md">
         <input
           value={search}
+          maxLength={SEARCH_MAX}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search library documents…"
           className="h-10 rounded-md border border-border bg-surface px-3 text-body"

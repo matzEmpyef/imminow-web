@@ -11,11 +11,11 @@ import { activeEmployeeSource } from '@/queries/pickerSources'
 import { usePermission } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
+import { REASON_MIN } from '@/lib/validation'
 
 // A typed reason (at least 3 characters) is required to reopen a case (Phase 8 T2-04, owner's ruling
 // 2026-10-13); it is kept in the audit entry. Named "Reopen Case" throughout the UI to stay distinct
 // from the existing "Reopen Plan" action (different meaning, different button).
-const MIN_REASON_LENGTH = 3
 
 //
 // Some closed cases are not the consultancy's to reopen: one a dispute ended, and (gate 12f) one
@@ -46,7 +46,7 @@ export function ReopenClientModal({
   const [reopenedVersion, setReopenedVersion] = useState<number | null | undefined>(undefined)
   const [employeeId, setEmployeeId] = useState('')
   const [reason, setReason] = useState('')
-  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
+  const reasonOk = reason.trim().length >= REASON_MIN
   const assign = useAssignClient(clientId, reopenedVersion ?? undefined)
   if (reopenedVersion !== undefined) {
     return (
@@ -154,6 +154,7 @@ export function ReopenClientModal({
         </p>
         <ClosingNote note={closingNote} />
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

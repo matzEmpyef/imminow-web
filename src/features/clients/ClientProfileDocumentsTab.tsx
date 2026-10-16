@@ -22,6 +22,7 @@ import { useFeature } from '@/lib/features'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
 import { UploadStudentDocumentModal } from './UploadStudentDocumentModal'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
+import { useUploadCheck } from '@/lib/useUploadCheck'
 
 /** A file-type icon from the name (and type, when known). */
 function FileIcon({ filename, mimeType }: { filename?: string | null; mimeType?: string | null }) {
@@ -103,6 +104,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
   const uploads = useUploads(clientId, { cursor: paging.cursor, limit: 20 })
   const studentDocs = useStudentDocuments(clientId)
   const uploadFile = useUploadFile(clientId)
+  const uploadCheck = useUploadCheck('document')
   const downloadUrl = useDownloadUrl()
   // T4-15: the Document Library is a Business feature. Without it the picker can only wait on a
   // list the server refuses to send, so the button is not offered.
@@ -222,7 +224,8 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
                   disabled={readOnly}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) uploadFile.mutate({ file }, { onSuccess: () => showToast('Document sent') })
+                    if (file && uploadCheck.check(file))
+                      uploadFile.mutate({ file }, { onSuccess: () => showToast('Document sent') })
                     e.target.value = ''
                   }}
                 />
@@ -258,7 +261,14 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
               </>
             }
           />
-          {uploadFile.isError && <p className="text-body-sm text-error">{uploadFile.error.message}</p>}
+          {uploadCheck.problem && (
+            <p role="alert" className="text-body-sm text-error">
+              {uploadCheck.problem}
+            </p>
+          )}
+          {uploadFile.isError && !uploadCheck.problem && (
+            <p className="text-body-sm text-error">{uploadFile.error.message}</p>
+          )}
 
           {sentDocuments.length === 0 ? (
             <EmptyState>

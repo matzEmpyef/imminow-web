@@ -26,6 +26,8 @@ import { AWAITING_REVIEW_WARNING_DAYS, awaitingReviewLabel, daysSince, dateField
 import { showToast } from '@/lib/toast'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 type Plan = components['schemas']['Plan']
 type Step = components['schemas']['Step']
@@ -118,6 +120,7 @@ function StepApprovalActions({ step, clientId, readOnly }: { step: Step; clientI
         (rejecting ? (
           <div className="flex items-end gap-sm">
             <TextField
+              kind="reason"
               label="Reason (shown to the applicant)"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -125,7 +128,7 @@ function StepApprovalActions({ step, clientId, readOnly }: { step: Step; clientI
             />
             <Button
               variant="destructive"
-              disabled={!reason}
+              disabled={!isTextOk('reason', reason)}
               loading={reject.isPending}
               onClick={() =>
                 reject.mutate(
@@ -234,7 +237,7 @@ function EditLiveStepModal({
             </p>
             <div className="flex flex-col gap-xs">
               <FieldLabel htmlFor="live-step-description">What happens in this step</FieldLabel>
-              <textarea
+              <LimitedTextArea kind="longText"
                 id="live-step-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -244,6 +247,7 @@ function EditLiveStepModal({
             </div>
             <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <TextField
+              kind="note"
               label="Reason for the change (shown to the applicant, optional)"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -251,10 +255,10 @@ function EditLiveStepModal({
           </>
         ) : (
           <>
-            <TextField label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <TextField kind="title" label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
             <div className="flex flex-col gap-xs">
               <FieldLabel htmlFor="live-step-description">What happens in this step</FieldLabel>
-              <textarea
+              <LimitedTextArea kind="longText"
                 id="live-step-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

@@ -6,8 +6,7 @@ import { useVoidPrCommissionEntry } from '@/queries/clients'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Voids a PR case's agreed contribution recorded with the wrong amount or currency (review F-081),
@@ -49,7 +48,7 @@ export function VoidPrContributionModal({
           <Button
             variant="destructive"
             loading={voidEntry.isPending}
-            disabled={trimmed.length < MIN_REASON_LENGTH}
+            disabled={trimmed.length < REASON_MIN}
             onClick={() =>
               voidEntry.mutate(trimmed, {
                 onSuccess: () => {
@@ -70,6 +69,7 @@ export function VoidPrContributionModal({
           case.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}

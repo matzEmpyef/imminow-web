@@ -8,6 +8,8 @@ import { ApiError } from '@/api/errors'
 import { showToast } from '@/lib/toast'
 import { useAccountWords } from '@/lib/accountWords'
 import { StillNeeded } from '@/components/StillNeeded'
+import { LimitedTextArea } from '@/components/LimitedTextArea'
+import { isTextOk } from '@/lib/validation'
 
 // The sub-reasons that mean the student never actually travelled. An acceptance plus one of these
 // is a FAILURE, not a success — colleges don't pay for a student who doesn't arrive — and the
@@ -79,11 +81,11 @@ export function CloseClientModal({
   // Until the question is answered the modal cannot say how the case will end (T4-14): it used to
   // announce "This closes as a success" before the consultant had said whether the student joined.
   const answered = !asksJoined || joined !== null
-  const canSubmit = Boolean(reason.trim()) && (!subReasonRequired || subReason !== '') && answered
+  const canSubmit = isTextOk('reason', reason) && (!subReasonRequired || subReason !== '') && answered
   const stillNeeded = [
     ...(asksJoined && joined === null ? [isPr ? 'whether the PR application went through' : 'whether the student joined'] : []),
     ...(subReasonRequired && subReason === '' ? ['what happened'] : []),
-    ...(!reason.trim() ? ['the notes'] : []),
+    ...(!isTextOk('reason', reason) ? ['the notes'] : []),
   ]
   // A PR case was never sent to colleges, so "rejected by the colleges" can't be what happened.
   const subReasons = isPr ? CLOSE_SUB_REASONS.filter((r) => r.value !== 'rejected_by_colleges') : CLOSE_SUB_REASONS
@@ -303,7 +305,7 @@ export function CloseClientModal({
           <label className="text-body-sm font-medium text-text-primary" htmlFor="close-client-reason">
             Notes
           </label>
-          <textarea
+          <LimitedTextArea kind="reason"
             id="close-client-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

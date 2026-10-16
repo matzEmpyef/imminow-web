@@ -3,6 +3,8 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useStudentDocuments, useUploadStudentDocument } from '@/queries/studentDocuments'
 import { showToast } from '@/lib/toast'
+import { uploadProblem } from '@/lib/uploadRules'
+import { DATE_MAX, DATE_MIN, LABEL_MAX } from '@/lib/validation'
 
 /**
  * Uploading a document on the student's behalf — the consultant scanned their passport at the
@@ -26,7 +28,17 @@ export function UploadStudentDocumentModal({ clientId, onClose }: { clientId: st
   const selected = types.find((t) => t.id === documentTypeId)
   // Mirrors the server's own refusals rather than letting the consultant discover them on submit.
   const needsExpiry = Boolean(selected?.expires)
-  const canSubmit = Boolean(file && documentTypeId && (!needsExpiry || expiresOn))
+  // The file is checked before anything is sent: the shared document rule (PDF, JPEG, PNG, WebP or
+  // Word, up to 15 MB), then this document's own list of types and its own size limit.
+  const allowedTypes = selected?.allowed_mime_types ?? []
+  const ownMaxBytes = selected?.max_size_mb ? selected.max_size_mb * 1024 * 1024 : null
+  const fileProblem = !file
+    ? null
+    : (uploadProblem(file, 'document') ??
+      ((allowedTypes.length > 0 && !allowedTypes.includes(file.type)) || (ownMaxBytes !== null && file.size > ownMaxBytes)
+        ? `Choose ${allowedTypes.length > 0 ? allowedTypes.join(', ') : 'a different'} file of up to ${selected?.max_size_mb ?? 15} MB for this document.`
+        : null))
+  const canSubmit = Boolean(file && documentTypeId && (!needsExpiry || expiresOn)) && !fileProblem
 
   return (
     <Modal
@@ -104,6 +116,7 @@ export function UploadStudentDocumentModal({ clientId, onClose }: { clientId: st
             <input
               id="student-doc-label"
               value={label}
+              maxLength={LABEL_MAX}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Instalment 2, reference from Dr Rao…"
               className="rounded-md border border-border bg-surface px-3 py-sm text-body"
@@ -119,6 +132,8 @@ export function UploadStudentDocumentModal({ clientId, onClose }: { clientId: st
             <input
               id="student-doc-expiry"
               type="date"
+              min={DATE_MIN}
+              max={DATE_MAX}
               value={expiresOn}
               onChange={(e) => setExpiresOn(e.target.value)}
               className="rounded-md border border-border bg-surface px-3 py-sm text-body"
@@ -140,10 +155,16 @@ export function UploadStudentDocumentModal({ clientId, onClose }: { clientId: st
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="text-body-sm"
           />
-          {selected && (
-            <p className="text-caption text-text-secondary">
-              {selected.allowed_mime_types?.join(', ')} &middot; up to {selected.max_size_mb}MB
+          {fileProblem ? (
+            <p role="alert" className="text-caption text-error">
+              {fileProblem}
             </p>
+          ) : (
+            selected && (
+              <p className="text-caption text-text-secondary">
+                {selected.allowed_mime_types?.join(', ')} &middot; up to {selected.max_size_mb}MB
+              </p>
+            )
           )}
         </div>
 

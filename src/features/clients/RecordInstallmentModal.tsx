@@ -158,7 +158,7 @@ export function RecordInstallmentModal({
           onChange={(e) => setReceivedOn(e.target.value)}
           error={receivedOnError}
         />
-        <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <TextField kind="note" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {receipts.length > 0 && (
           <SelectField label="Link a platform receipt (optional)" value={receiptId} onChange={(e) => setReceiptId(e.target.value)}>
             <option value="">None — recorded outside immiNow</option>

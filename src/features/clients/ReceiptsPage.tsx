@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { REASON_MAX, clipChars, isTextOk, stripControlChars } from '@/lib/validation'
 
 type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][number]
 
@@ -165,17 +166,18 @@ export function ReceiptsPage() {
                 <>
                   <input
                     value={voidReason}
-                    onChange={(e) => setVoidReason(e.target.value)}
+                    onChange={(e) => setVoidReason(clipChars(stripControlChars(e.target.value), REASON_MAX))}
                     placeholder="Reason…"
+                    aria-label="Reason for voiding"
                     className="h-8 w-32 rounded-md border border-border bg-surface px-sm text-caption"
                   />
                   <Button
                     variant="destructive"
-                    disabled={!voidReason}
+                    disabled={!isTextOk('reason', voidReason)}
                     loading={voidReceipt.isPending}
                     onClick={() =>
                       voidReceipt.mutate(
-                        { id: r.id, reason: voidReason },
+                        { id: r.id, reason: voidReason.trim() },
                         {
                           onSuccess: () => {
                             setVoidingId(null)

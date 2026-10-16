@@ -14,6 +14,7 @@ import { useMyConsultancy } from '@/queries/consultancy'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { INTAKE_GROUPS, intakeMonthName } from '@/lib/intake'
 import { personSource, type PersonRow } from '@/queries/pickerSources'
+import { MONEY_MAX } from '@/lib/validation'
 import {
   DURATION_BUCKETS,
   STUDY_MODE_OPTIONS,
@@ -97,6 +98,7 @@ export function CourseFinderFilters({
           catalog search without one, which is what searching on behalf of a lead needs. */}
       <div className="grid grid-cols-1 gap-md md:grid-cols-4">
         <TextField
+          kind="search"
           label="Search"
           value={state.search}
           onChange={(e) => onChange({ search: e.target.value })}
@@ -169,6 +171,8 @@ export function CourseFinderFilters({
           <TextField
             label={feeCurrency ? `Max fee (${feeCurrency})` : 'Max fee'}
             type="number"
+            min={0}
+            max={MONEY_MAX}
             value={state.feeMax}
             onChange={(e) => onChange({ feeMax: e.target.value })}
             placeholder="Any"
@@ -217,12 +221,13 @@ export function CourseFinderFilters({
         <>
           <div className="mt-md grid grid-cols-1 gap-md md:grid-cols-4">
             <TextField
+              kind="label"
               label="Province or state"
               value={state.provinceState}
               onChange={(e) => onChange({ provinceState: e.target.value })}
               placeholder="Any"
             />
-            <TextField label="City" value={state.city} onChange={(e) => onChange({ city: e.target.value })} placeholder="Any" />
+            <TextField kind="label" label="City" value={state.city} onChange={(e) => onChange({ city: e.target.value })} placeholder="Any" />
             {/* A MONTH, grouped Aug–Dec / Jan–Jul, with "any month in this group" as the first
                 row of each group (assumptions audit M9, product owner 2026-09-19). The two
                 half-year buckets this offered — "Jan – Jun" / "Jul – Dec" — are not values the

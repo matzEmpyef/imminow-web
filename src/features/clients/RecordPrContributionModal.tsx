@@ -102,7 +102,7 @@ export function RecordPrContributionModal({
           </SelectField>
         </div>
         <CountrySelect label="Destination country" value={country} onChange={setCountry} required />
-        <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <TextField kind="note" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       </form>
     </Modal>
   )

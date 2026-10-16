@@ -23,6 +23,7 @@ import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { isTextOk, REASON_MAX } from '@/lib/validation'
 
 // C4 (2026-09-13): `part_paid` is derived by the server from the receipts recorded against the
 // invoice, so the list now has a fourth thing to say between "sent" and "paid" — warning, because
@@ -72,11 +73,12 @@ function VoidInvoiceControl({ invoice, onVoided }: { invoice: Invoice; onVoided?
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason…"
         aria-label="Reason for voiding"
+        maxLength={REASON_MAX}
         className="h-8 w-32 rounded-md border border-border bg-surface px-sm text-caption"
       />
       <Button
         variant="destructive"
-        disabled={!reason}
+        disabled={!isTextOk('reason', reason)}
         loading={voidInvoice.isPending}
         onClick={() =>
           voidInvoice.mutate(
@@ -308,6 +310,7 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
           {lineItems.map((item, i) => (
             <div key={i} className="grid grid-cols-[1fr_auto] gap-sm">
               <TextField
+                kind="title"
                 label="Description"
                 value={item.description}
                 onChange={(e) => updateItem(i, { description: e.target.value })}

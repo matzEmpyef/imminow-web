@@ -8,8 +8,7 @@ import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-
-const MIN_REASON_LENGTH = 3
+import { REASON_MIN } from '@/lib/validation'
 
 /**
  * Voids a mis-entered installment (contract gate 11, F14). It replaces the old one-click Remove:
@@ -41,7 +40,7 @@ export function VoidInstallmentModal({
   const trimmed = reason.trim()
 
   function submit() {
-    if (trimmed.length < MIN_REASON_LENGTH || voidInstallment.isPending) return
+    if (trimmed.length < REASON_MIN || voidInstallment.isPending) return
     const payload = { entryId, installmentId: installment.id, reason: trimmed }
     voidInstallment.mutate(
       { ...payload, idempotencyKey: keyFor(payload) },
@@ -82,7 +81,7 @@ export function VoidInstallmentModal({
           <Button
             variant="destructive"
             loading={voidInstallment.isPending}
-            disabled={trimmed.length < MIN_REASON_LENGTH}
+            disabled={trimmed.length < REASON_MIN}
             onClick={submit}
           >
             Void instalment
@@ -104,6 +103,7 @@ export function VoidInstallmentModal({
           this is sent to immiNow Finance as a request instead. The instalment stays as it is until they answer.
         </p>
         <TextAreaField
+          kind="reason"
           label="Reason"
           required
           rows={3}
