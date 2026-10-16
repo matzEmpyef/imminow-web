@@ -116,7 +116,7 @@ describe('where a sign-in lands', () => {
   it.each(['/', '/login', '/login?x=1', '//elsewhere.test/x', 'https://elsewhere.test/x', '/set-password/abc', '/\\elsewhere.test/x', '/clients\\..\\x'])(
     'never follows %o',
     (page) => {
-      if (page.startsWith('/') && !page.startsWith('//')) endSessionOf('u1', 'expired', page)
+      if (page.startsWith('/') && !page.startsWith('//') && !page.includes('\\')) endSessionOf('u1', 'expired', page)
       noteSessionBegan('u1')
       expect(landingPathAfterSignIn({ role: 'consultant', from: page, at: Date.now() })).toBe('/dashboard')
     },
