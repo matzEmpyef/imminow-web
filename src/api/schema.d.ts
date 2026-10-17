@@ -10015,7 +10015,7 @@ export interface paths {
                     "application/json": {
                         /** @description 1-5, rounded to one decimal. Null clears the override. */
                         rating: number | null;
-                        /** @description Recorded on the audit entry. */
+                        /** @description Recorded on the audit entry. Left out or null means no reason; a reason that is sent is 3 to 2000 characters, so an empty or all-space one is refused with 400. */
                         reason?: string | null;
                     };
                 };
@@ -30878,7 +30878,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description Bounded since 2026-10-06 (review F-017): a shared search is one a person built on a search screen. At most 40 filters, each name at most 64 characters and each value at most 500, and a keyword of at most 200. Anything larger is refused 400 `validation_failed` with a message naming the limit ("filters can have at most 40 entries.", "A filter name can be at most 64 characters.", "A filter value can be at most 500 characters.", "search can be at most 200 characters."). */
+        /** @description Bounded since 2026-10-06 (review F-017): a shared search is one a person built on a search screen. At most 40 filters, each name at most 64 characters and each value at most 500. The keyword is a search like any other (decision 154): 2 to 100 characters. Anything else is refused 400 `validation_failed` with a message naming the limit ("filters can have at most 40 entries.", "A filter name can be at most 64 characters.", "A filter value can be at most 500 characters.", "Searches need at least 2 characters.", "Searches can be up to 100 characters."). */
         ShareSearchRequest: {
             /** @description GET /courses `filter[...]` keys and values, as the sender's search screen holds them. */
             filters?: {
@@ -35449,6 +35449,8 @@ export interface components {
             outstanding_inr: number;
             /** @description Added 2026-10-10 (owner's ruling on pre-push row 2.30, review F-300). The ₹ value of money held on the case beyond what any due part is owed — the per-currency `credit` of `by_currency`, converted and added by the server, in whole rupees; 0 when there is none. Like `credit` it counts money paid ahead of a share that has not fallen due yet as well as money beyond everything the case owes. The console shows "Overpaid by ..." from this and no longer subtracts `due_inr` from `paid_inr`. Optional (the frozen mock does not carry it); the backend always sends it. */
             overpaid_by_inr?: number;
+            /** @description Phase 9 console sitting. What the "not yet due" figure (`expected_share_inr`) is waiting for, as a sentence to show under it: the same sentence as `CommissionDue.platform_still_to_come_text`. On a closed case it says the payer has not yet paid all of what was agreed and that the rest falls due when it does; before the close it says the share falls due once the case closes successfully and the payer pays. Null when nothing is still to come. Optional (the frozen mock does not carry it); the backend always sends it. */
+            readonly still_to_come_text?: string | null;
             /**
              * @description closed (review H2, 2026-09-12) — what was left was closed without payment; nothing more is expected and it was not collected. It used to read paid.
              * @enum {string}
