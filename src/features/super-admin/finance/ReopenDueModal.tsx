@@ -5,7 +5,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * Reopens a part Finance closed without payment (2026-09-11) — same VoidDueModal-style reason
@@ -26,7 +27,7 @@ export function ReopenDueModal({
   const voidDue = useVoidCommissionDue()
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < REASON_MIN || !part.waive_change_id
+  const invalid = !isTextOk('reason', reason) || !part.waive_change_id
   const closedAmount = money({ amount: part.waived_amount ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
 
   return (
@@ -37,6 +38,7 @@ export function ReopenDueModal({
       footer={
         <>
           {voidDue.isError && <p className="mr-auto self-center text-body-sm text-error">{voidDue.error.message}</p>}
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['the reason']} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

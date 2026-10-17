@@ -5,7 +5,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * Undoes a small-difference settlement (2026-10-08) — the same reason popup as ReopenDueModal, on
@@ -26,7 +27,7 @@ export function UndoSettlementModal({
   const voidDue = useVoidCommissionDue()
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < REASON_MIN || !part.settle_change_id
+  const invalid = !isTextOk('reason', reason) || !part.settle_change_id
   const writtenOff = money({ amount: part.written_off, currency: part.currency ?? 'INR' })
 
   return (
@@ -41,6 +42,7 @@ export function UndoSettlementModal({
               {voidDue.error.message}
             </p>
           )}
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['the reason']} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

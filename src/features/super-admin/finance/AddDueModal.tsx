@@ -1,4 +1,4 @@
-import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
@@ -9,7 +9,8 @@ import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-import { REASON_MIN, checkText } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk, moneyError } from '@/lib/validation'
 
 /**
  * Adds a second instalment or agreed extra to what a case owes immiNow (2026-09-11) — separate
@@ -33,24 +34,18 @@ export function AddDueModal({
   const [currency, setCurrency] = useState(currencies[0] ?? 'INR')
   const [dueOn, setDueOn] = useState('')
   const [reason, setReason] = useState('')
-  const [attempted, setAttempted] = useState(false)
   const { keyFor, settle } = usePayloadIdempotencyKey()
 
   const parsed = Number(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !hasTooManyDecimals(amount)
+  // The amount rule is the field's own (0.01 to 99,99,99,999.99, two decimals): the button and the
+  // message under the field agree because both ask `moneyError`.
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && moneyError(amount) === undefined
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(addDue.error, 'amount')
   const trimmedReason = reason.trim()
-  const invalid = !isValidAmount || trimmedReason.length < REASON_MIN
-
-  const amountError = !attempted
-    ? undefined
-    : amount.trim() === ''
-      ? 'Enter an amount.'
-      : !isValidAmount
-        ? 'Amount must be greater than 0.'
-        : undefined
-  const reasonError = attempted ? checkText('reason', reason) : undefined
+  const reasonOk = isTextOk('reason', reason)
+  const stillNeeded = [...(isValidAmount ? [] : ['an amount']), ...(reasonOk ? [] : ['the reason'])]
+  const invalid = stillNeeded.length > 0
 
   return (
     <Modal
@@ -62,16 +57,14 @@ export function AddDueModal({
           {addDue.isError && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{addDue.error.message}</p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             loading={addDue.isPending}
+            disabled={invalid}
             onClick={() => {
-              if (invalid) {
-                setAttempted(true)
-                return
-              }
               const payload = {
                 entryId: caseRow.id,
                 amount: parsed,
@@ -112,8 +105,12 @@ export function AddDueModal({
             label="Amount"
             required
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            error={amountError ?? amountMessage}
+            onChange={(e) => {
+              setAmount(e.target.value)
+              // The refusal was about the amount as it was sent.
+              if (amountMessage) addDue.reset()
+            }}
+            error={amountMessage}
             className="flex-1"
           />
           <CompactSelect label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
@@ -144,7 +141,6 @@ export function AddDueModal({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           hint="e.g. the second instalment of the college's commission. The consultancy is shown this."
-          error={reasonError}
         />
       </div>
     </Modal>

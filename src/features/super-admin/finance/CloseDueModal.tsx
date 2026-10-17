@@ -6,7 +6,8 @@ import { money } from './money'
 import { useWaiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * Closes a due part without payment (2026-09-11) — the consultancy owes nothing more on it, with a
@@ -32,7 +33,7 @@ export function CloseDueModal({
   const [reason, setReason] = useState('')
   const { keyFor, settle } = usePayloadIdempotencyKey()
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < REASON_MIN || !part.key
+  const invalid = !isTextOk('reason', reason) || !part.key
   const outstanding = money({ amount: part.outstanding ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
 
   return (
@@ -43,6 +44,7 @@ export function CloseDueModal({
       footer={
         <>
           {waiveDue.isError && <p className="mr-auto self-center text-body-sm text-error">{waiveDue.error.message}</p>}
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['the reason']} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

@@ -5,7 +5,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { formatDate } from '@/lib/time'
 import { useDecideInstallmentVoid, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /**
  * Finance's answer to a consultancy's void of an installment whose share is already due (review
@@ -37,7 +38,7 @@ export function InstallmentVoidDecisionModal({
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
   const approving = decision === 'approve'
-  const invalid = !part.instalment_id || (!approving && trimmedReason.length < REASON_MIN)
+  const invalid = !part.instalment_id || (!approving && !isTextOk('reason', reason))
 
   return (
     <Modal
@@ -51,6 +52,7 @@ export function InstallmentVoidDecisionModal({
               {decide.error.message}
             </p>
           )}
+          <StillNeeded items={!approving && !isTextOk('reason', reason) ? ['the reason'] : []} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

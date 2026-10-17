@@ -1,4 +1,4 @@
-import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
@@ -8,7 +8,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions, money } from './money'
 import { useOverrideCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk, moneyError } from '@/lib/validation'
 
 /**
  * Overrides immiNow's calculated share on a case (2026-09-11) — replaces the old "Edit original
@@ -38,11 +39,14 @@ export function OverrideDueModal({
 
   const trimmedReason = reason.trim()
   const parsed = Number(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed >= 0 && !hasTooManyDecimals(amount)
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && moneyError(amount, { allowZero: true }) === undefined
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(overrideDue.error, 'amount')
-  const invalid =
-    mode === 'clear' ? trimmedReason.length < REASON_MIN : !isValidAmount || trimmedReason.length < REASON_MIN
+  const stillNeeded = [
+    ...(mode === 'clear' || isValidAmount ? [] : ['an amount']),
+    ...(isTextOk('reason', reason) ? [] : ['the reason']),
+  ]
+  const invalid = stillNeeded.length > 0
 
   function partAmount(part: CommissionDuePart): string {
     return money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
@@ -82,6 +86,7 @@ export function OverrideDueModal({
           {overrideDue.isError && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{overrideDue.error.message}</p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -120,7 +125,12 @@ export function OverrideDueModal({
                 label="Amount"
                 required
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                allowZero
+                onChange={(e) => {
+                  setAmount(e.target.value)
+                  // The refusal was about the amount as it was sent.
+                  if (amountMessage) overrideDue.reset()
+                }}
                 error={amountMessage}
                 className="flex-1"
               />

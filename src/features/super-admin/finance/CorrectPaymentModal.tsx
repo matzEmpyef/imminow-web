@@ -1,4 +1,4 @@
-import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { useDebouncedValue } from '@/lib/useDebounce'
@@ -10,7 +10,8 @@ import { money, paymentInrNote, paymentMoney } from './money'
 import { useCorrectCommissionPayment, useCorrectPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
-import { REASON_MIN, checkText } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk, moneyError } from '@/lib/validation'
 
 /**
  * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
@@ -32,33 +33,18 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   const currency = payment.amount.currency ?? 'INR'
   const [amount, setAmount] = useState(String(currentAmount))
   const [reason, setReason] = useState('')
-  const [attempted, setAttempted] = useState(false)
 
   const parsed = Number(amount)
-  const isValidNumber = amount.trim() !== '' && Number.isFinite(parsed)
+  // Zero is allowed here: it records that nothing actually arrived. The rest is the field's own rule.
+  const isValidNumber =
+    amount.trim() !== '' && Number.isFinite(parsed) && moneyError(amount, { allowZero: true }) === undefined
   const trimmedReason = reason.trim()
-  const invalid =
-    !isValidNumber ||
-    parsed < 0 ||
-    hasTooManyDecimals(amount) ||
-    parsed === currentAmount ||
-    trimmedReason.length < REASON_MIN
+  const unchanged = isValidNumber && parsed === currentAmount
   const corrections = payment.corrections ?? []
-
-  const amountError = !attempted
-    ? undefined
-    : !isValidNumber
-      ? 'Enter an amount.'
-      : parsed < 0
-        ? 'Amount can’t be negative.'
-        : parsed === currentAmount
-          ? 'That’s the amount already on record — change it or cancel.'
-          : undefined
-  const reasonError = attempted ? checkText('reason', reason) : undefined
 
   // The corrected amount as it would be sent, asked of the server after a short pause in typing;
   // none goes while it is not a valid amount, or is the amount already on record.
-  const asked = isValidNumber && parsed >= 0 && !hasTooManyDecimals(amount) && parsed !== currentAmount ? parsed : null
+  const asked = isValidNumber && parsed !== currentAmount ? parsed : null
   const settled = useDebouncedValue(asked)
   const preview = useCorrectPreview(payment.id, settled ?? undefined, settled != null)
   const draftSettled = asked != null && settled === asked
@@ -77,6 +63,13 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
   const overpaymentShown = isOverpayment || serverSaysOverpayment
 
+  const stillNeeded = [
+    ...(!isValidNumber ? ['the new amount'] : unchanged ? ['a different amount from the one on record'] : []),
+    ...(isTextOk('reason', reason) ? [] : ['the reason']),
+    ...(overpaymentShown && !allowOverpayment ? ['the over-payment tick'] : []),
+  ]
+  const invalid = stillNeeded.length > 0
+
   // The refusal was about the amount as it was sent: once it changes, neither it nor the tick applies.
   function clearServerOverpayment() {
     setAllowOverpayment(false)
@@ -93,17 +86,14 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           {correct.isError && !serverSaysOverpayment && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{correct.error.message}</p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             loading={correct.isPending}
-            disabled={overpaymentShown && !allowOverpayment}
+            disabled={invalid}
             onClick={() => {
-              if (invalid) {
-                setAttempted(true)
-                return
-              }
               correct.mutate(
                 {
                   paymentId: payment.id,
@@ -151,12 +141,14 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
         <MoneyField
           label={`New amount received (${currency})`}
           required
+          allowZero
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value)
             clearServerOverpayment()
+            if (amountMessage) correct.reset()
           }}
-          error={amountError ?? amountMessage}
+          error={amountMessage}
         />
         {previewCurrent && !overpaymentShown && (
           <p className="text-caption text-text-secondary">
@@ -200,7 +192,6 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           hint="The consultancy or institute is shown this reason."
-          error={reasonError}
         />
         <p className="text-caption text-text-secondary">Enter 0 if no money arrived, for example when a cheque bounced.</p>
 

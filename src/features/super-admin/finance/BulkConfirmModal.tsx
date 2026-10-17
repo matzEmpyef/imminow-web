@@ -1,4 +1,3 @@
-import { hasTooManyDecimals } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '@/api/errors'
@@ -10,7 +9,8 @@ import { BatchResultList } from '@/components/BatchResultList'
 import { batchSummary, useBatchRun } from '@/lib/useBatchRun'
 import { paymentInrNote, paymentMoney, paymentsTotalLabel } from './money'
 import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk, moneyError } from '@/lib/validation'
 
 /**
  * Confirms a batch of declared payments (2026-09-11 Awaiting Confirmation bulk bar). Each row gets
@@ -70,13 +70,13 @@ export function BulkConfirmModal({
 
   function rowValid(p: CommissionPayment): boolean {
     const parsed = Number(amounts[p.id])
-    if (amounts[p.id]?.trim() === '' || !Number.isFinite(parsed) || parsed <= 0 || hasTooManyDecimals(amounts[p.id])) return false
+    if (amounts[p.id]?.trim() === '' || !Number.isFinite(parsed) || moneyError(amounts[p.id]) !== undefined) return false
     if (changed(p)) {
       // The server has not said yet whether the change needs a note.
       const verdict = verdicts[p.id]
       if (!verdict || verdict.state === 'pending') return false
     }
-    if (needsNote(p) && (notes[p.id] ?? '').trim().length < REASON_MIN) return false
+    if (needsNote(p) && !isTextOk('reason', notes[p.id] ?? '')) return false
     return true
   }
 
@@ -98,6 +98,14 @@ export function BulkConfirmModal({
   )
 
   const allValid = payments.every(rowValid)
+  const amountOk = (p: CommissionPayment) => {
+    const parsed = Number(amounts[p.id])
+    return amounts[p.id]?.trim() !== '' && Number.isFinite(parsed) && moneyError(amounts[p.id]) === undefined
+  }
+  const stillNeeded = [
+    ...(payments.every(amountOk) ? [] : ['an amount for every payment']),
+    ...(payments.every((p) => !needsNote(p) || isTextOk('reason', notes[p.id] ?? '')) ? [] : ['a note where an amount differs']),
+  ]
 
   async function handleConfirm() {
     await batch.start(payments)
@@ -125,6 +133,7 @@ export function BulkConfirmModal({
           </Button>
         ) : (
           <>
+            <StillNeeded items={stillNeeded} />
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -227,7 +236,7 @@ function BulkConfirmRow({
   const approx = paymentInrNote(payment)
 
   const parsed = Number(amount)
-  const readable = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !hasTooManyDecimals(amount)
+  const readable = amount.trim() !== '' && Number.isFinite(parsed) && moneyError(amount) === undefined
   // Asked only for a changed, readable amount.
   const asked = amount !== initialAmount && readable ? parsed : null
   const settled = useDebouncedValue(asked)

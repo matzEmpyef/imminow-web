@@ -16,8 +16,8 @@ import {
   type FinanceCaseRow,
 } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
-import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
-import { hasTooManyDecimals } from '@/lib/moneyInput'
+import { PAYMENT_REFERENCE_MAX, moneyError } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
 import { useDebouncedValue } from '@/lib/useDebounce'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
@@ -87,8 +87,7 @@ export function ReceiveDueModal({
   const settlesCurrency = part ? (part.currency ?? 'INR') : owedCurrency
 
   const parsed = Number(amount)
-  const tooManyDecimals = hasTooManyDecimals(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !tooManyDecimals
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && moneyError(amount) === undefined
 
   const parsedRate = Number(rate)
   const rateGiven = rate.trim() !== ''
@@ -159,8 +158,15 @@ export function ReceiveDueModal({
   const duplicateReference = refusal?.code === 'already_exists' ? refusal.message : undefined
 
   const isOverpayment = previewCurrent?.is_overpayment === true
-  const invalid =
-    !isValidAmount || !receivedOn || crossInvalid || ((isOverpayment || serverSaysOverpayment) && !allowOverpayment)
+  const stillNeeded = [
+    ...(isValidAmount ? [] : ['an amount']),
+    ...(receivedOn ? [] : ['the date received']),
+    ...(crossCurrency && settlesCurrency === '' ? ['the currency owed'] : []),
+    ...(sameCurrencyError ? ['a currency different from the one owed'] : []),
+    ...(crossCurrency && rateError ? ['a valid rate'] : []),
+    ...((isOverpayment || serverSaysOverpayment) && !allowOverpayment ? ['the over-payment tick'] : []),
+  ]
+  const invalid = stillNeeded.length > 0
 
   // The server's sentence for the amount field (`details.fields`), when a save was refused on it.
   const amountFieldMessage = fieldMessages(receiveDue.error).amount
@@ -195,6 +201,7 @@ export function ReceiveDueModal({
               {receiveDue.error.message}
             </p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

@@ -104,6 +104,21 @@ beforeEach(() => {
   vi.mocked(useDecideInstallmentVoid).mockReturnValue(mutation(decideMutate))
 })
 
+describe('Not yet due, in words', () => {
+  const sentence =
+    'The case is closed, but the student has not yet paid all of what was agreed: ₹3,004.82 more will fall due when the student pays the rest. Nothing of it is due before then.'
+
+  it('shows the server’s sentence under the figures', () => {
+    openDrawer({}, { still_to_come_text: sentence, expected_share_inr: 3004.82 })
+    expect(screen.getByText(sentence, { exact: false })).toBeInTheDocument()
+  })
+
+  it('shows nothing when the server has nothing to say', () => {
+    openDrawer({}, { still_to_come_text: null })
+    expect(screen.queryByText(/will fall due/)).toBeNull()
+  })
+})
+
 describe('Mark as fully paid', () => {
   it('is offered to a Finance holder when the server says finance may settle', () => {
     openDrawer({ settle_needs: 'finance' })

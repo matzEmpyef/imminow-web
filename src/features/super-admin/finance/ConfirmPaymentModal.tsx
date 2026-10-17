@@ -1,4 +1,4 @@
-import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { formatMoney, formatRate } from '@/lib/money'
 import { useState } from 'react'
@@ -11,7 +11,8 @@ import { money, paymentInrNote, paymentMoney } from './money'
 import { CaseOwesRows } from './CaseOwesRows'
 import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk, moneyError } from '@/lib/validation'
 
 /**
  * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
@@ -36,8 +37,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const [note, setNote] = useState('')
 
   const parsed = Number(receivedAmount)
-  const isValidAmount =
-    receivedAmount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !hasTooManyDecimals(receivedAmount)
+  const isValidAmount = receivedAmount.trim() !== '' && Number.isFinite(parsed) && moneyError(receivedAmount) === undefined
   const trimmedNote = note.trim()
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(confirm.error, 'received_amount', 'amount')
@@ -65,11 +65,13 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
   const overpaymentShown = isOverpayment || serverSaysOverpayment
 
-  const invalid =
-    !isValidAmount ||
-    awaitingPreview ||
-    (needsNote && trimmedNote.length < REASON_MIN) ||
-    (overpaymentShown && !allowOverpayment)
+  // What the person still has to do; waiting on the preview's answer is not theirs to do.
+  const stillNeeded = [
+    ...(isValidAmount ? [] : ['the amount received']),
+    ...(needsNote && !isTextOk('reason', note) ? ['why it is different'] : []),
+    ...(overpaymentShown && !allowOverpayment ? ['the over-payment tick'] : []),
+  ]
+  const invalid = stillNeeded.length > 0 || awaitingPreview
 
   // What the case owes NOW (fallen due), before the preview has answered: the list's figure for this
   // payment, in its own currency (assumptions audit H14) and in rupees. The preview's two figures
@@ -97,6 +99,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           {confirm.isError && !amountMessage && !serverSaysOverpayment && (
             <p className="mr-auto self-center text-body-sm text-error">{confirm.error.message}</p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

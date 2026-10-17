@@ -5,7 +5,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { paymentInrNote, paymentMoney } from './money'
 import { useRejectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /** Turns a declared payment down with a reason the consultancy is shown (2026-09-11 rebuild). */
 export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
@@ -23,13 +24,14 @@ export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPa
       footer={
         <>
           {reject.isError && <p className="mr-auto self-center text-body-sm text-error">{reject.error.message}</p>}
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['the reason']} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             variant="destructive"
             loading={reject.isPending}
-            disabled={trimmed.length < REASON_MIN}
+            disabled={!isTextOk('reason', reason)}
             onClick={() =>
               reject.mutate(
                 { paymentId: payment.id, reason: trimmed },

@@ -5,7 +5,8 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { REASON_MIN } from '@/lib/validation'
+import { StillNeeded } from '@/components/StillNeeded'
+import { isTextOk } from '@/lib/validation'
 
 /** Removes an amount added by mistake (2026-09-11) — it stays visible in the change history, struck through. */
 export function VoidDueModal({
@@ -22,7 +23,7 @@ export function VoidDueModal({
   const voidDue = useVoidCommissionDue()
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
-  const invalid = trimmedReason.length < REASON_MIN
+  const invalid = !isTextOk('reason', reason)
   const partAmount = money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
 
   return (
@@ -33,6 +34,7 @@ export function VoidDueModal({
       footer={
         <>
           {voidDue.isError && <p className="mr-auto self-center text-body-sm text-error">{voidDue.error.message}</p>}
+          <StillNeeded items={isTextOk('reason', reason) ? [] : ['the reason']} />
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

@@ -160,6 +160,14 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
             <SummaryStat label="Overdue (₹)" value={inr(row.overdue_inr)} warning={(row.overdue_inr ?? 0) > 0} />
           </div>
 
+          {/* Why money is "not yet due" on this case, in the server's own words (`still_to_come_text`):
+              a closed case can read Due, Not yet due and Paid all alike with nothing to say why. */}
+          {row.still_to_come_text && (
+            <p className="-mt-sm text-body-sm text-text-secondary">
+              <span className="font-medium text-text-primary">Not yet due.</span> {row.still_to_come_text}
+            </p>
+          )}
+
           {/* outstanding_inr floors at 0 (review C5, 2026-09-12), so a genuine over-payment
               recorded via ReceiveDueModal's checkbox would otherwise vanish from this drawer
               entirely. The server reports the surplus itself: per currency as `credit`, and in
